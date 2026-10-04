@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/tree.svg" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Arbre généalogique familial : recherche, lieux, familles, métiers et statistiques, à partir d'un fichier GEDCOM personnel."
+    />
+    <title>Généalogie</title>
+    <script>
+      // Applied before first paint so the page never flashes the wrong mode.
+      // Three states: 'light' / 'dark' stamp data-theme; 'system' (the default)
+      // stamps nothing and lets prefers-color-scheme decide.
+      (function () {
+        try {
+          var t = localStorage.getItem('genealogy-theme')
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.setAttribute('data-theme', t)
+          }
+        } catch (e) {
+          /* private mode / storage disabled: fall through to system */
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

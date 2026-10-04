@@ -1,0 +1,16 @@
+[Unit]
+Description=Genealogy API (read-only family tree)
+After=network-online.target postgresql@16-main.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lbzgiu
+WorkingDirectory=/home/lbzgiu/genealogy/app/api
+EnvironmentFile=-/home/lbzgiu/genealogy/app/api/.env
+ExecStart=/home/lbzgiu/genealogy/app/api/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8005 --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

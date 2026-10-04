@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.tanstack/
+
+# Deployment config and secrets: they name the family and hold the upload password.
+.env
+.env.*
+!.env.example
+
+# Tools
+.playwright-mcp/
+.DS_Store

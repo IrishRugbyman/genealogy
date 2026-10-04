@@ -1,0 +1,426 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   Généalogie - design system
+   ---------------------------------------------------------------------------
+   Typography
+     Display  EB Garamond    a revival of Claude Garamond's Paris punches
+                             (16th c.). Chosen because this archive is French
+                             civil-register material; the face is contemporary
+                             with the oldest documents behind the data, not
+                             decoration.
+     Text     Geist          UI, labels, body.
+     Numeric  Geist Mono     dates, years, INSEE codes, Sosa numbers, IDs -
+                             anything that should align in a column.
+
+   Colour
+     One accent (terracotta) reserved for interaction and brand. It never
+     encodes data.
+     One five-slot categorical scale for the domain encodings (sex, event
+     type, family branch). Slot order is fixed and never cycled.
+
+     Every value below was generated in OKLCH and machine-verified, not
+     eyeballed:
+       - categorical scale passes the six checks in BOTH modes
+         (lightness band, chroma floor, protan/deutan CVD separation,
+         normal-vision floor, contrast vs surface). Slots 1-3 additionally
+         clear the harder all-pairs list, so they are the ones safe to use
+         where marks touch arbitrarily.
+       - every text/surface pair clears WCAG AA (4.5:1), marks clear 3:1.
+     Colour is never the only channel: every badge, dot and series also
+     carries a text label.
+
+   Shape (one documented scale, applied everywhere)
+     --radius-sm  6px   badges, tags, chips
+     --radius     8px   buttons, inputs, selects, segmented items
+     --radius-lg 12px   cards, panels, dialogs
+     rounded-full       avatars only
+   ========================================================================= */
+
+/* --- Light (default) ------------------------------------------------------ */
+:root {
+  color-scheme: light;
+
+  --paper: #f8f7f3;
+  --surface: #fefdfb;
+  --surface-2: #f1eee9;
+  --sunken: #f1eee9;
+
+  --ink: #1e2026;
+  --ink-2: #53575e;
+  --ink-3: #65686f;
+
+  --rule: #dfdcd7;
+  --rule-strong: #cdc9c2;
+
+  --accent: #a24112;
+  --accent-hover: #8c3810;
+  --accent-on: #fefdfb;
+
+  --danger: #b9192e;
+  --danger-on: #fefdfb;
+
+  /* Fixed-order categorical scale. Slots 1-3 are all-pairs safe. */
+  --cat-1: #3c5db9; /* blue   */
+  --cat-2: #ac7d00; /* gold   */
+  --cat-3: #019897; /* teal   */
+  --cat-4: #8542a9; /* violet */
+  --cat-5: #c03f62; /* rose   */
+
+  --shadow-color: 265 8% 16%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.06);
+  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.05), 0 6px 16px hsl(var(--shadow-color) / 0.07);
+  --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.06), 0 16px 36px hsl(var(--shadow-color) / 0.10);
+
+  --scrim: hsl(265 10% 12% / 0.42);
+}
+
+/* --- Dark ----------------------------------------------------------------- */
+/* Defined twice on purpose: once for the system preference (guarded so an
+   explicit light choice wins) and once for an explicit dark choice, so the
+   toggle overrides in both directions. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --paper: #12151a;
+    --surface: #1c1f25;
+    --surface-2: #24272e;
+    --sunken: #0c0e12;
+
+    --ink: #edebe7;
+    --ink-2: #a9acb2;
+    --ink-3: #868990;
+
+    --rule: #2f3237;
+    --rule-strong: #3d4046;
+
+    --accent: #ea9162;
+    --accent-hover: #f2a074;
+    --accent-on: #12151a;
+
+    --danger: #f66b71;
+    --danger-on: #12151a;
+
+    --cat-1: #5176d4;
+    --cat-2: #bb8805;
+    --cat-3: #01a4a3;
+    --cat-4: #9e5bc3;
+    --cat-5: #da5877;
+
+    --shadow-color: 265 30% 2%;
+    --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.4);
+    --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.35), 0 6px 16px hsl(var(--shadow-color) / 0.4);
+    --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.4), 0 16px 36px hsl(var(--shadow-color) / 0.5);
+
+    --scrim: hsl(265 30% 2% / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: #12151a;
+  --surface: #1c1f25;
+  --surface-2: #24272e;
+  --sunken: #0c0e12;
+
+  --ink: #edebe7;
+  --ink-2: #a9acb2;
+  --ink-3: #868990;
+
+  --rule: #2f3237;
+  --rule-strong: #3d4046;
+
+  --accent: #ea9162;
+  --accent-hover: #f2a074;
+  --accent-on: #12151a;
+
+  --danger: #f66b71;
+  --danger-on: #12151a;
+
+  --cat-1: #5176d4;
+  --cat-2: #bb8805;
+  --cat-3: #01a4a3;
+  --cat-4: #9e5bc3;
+  --cat-5: #da5877;
+
+  --shadow-color: 265 30% 2%;
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.4);
+  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.35), 0 6px 16px hsl(var(--shadow-color) / 0.4);
+  --shadow-lg: 0 4px 8px hsl(var(--shadow-color) / 0.4), 0 16px 36px hsl(var(--shadow-color) / 0.5);
+
+  --scrim: hsl(265 30% 2% / 0.6);
+}
+
+/* --- Tailwind token bridge ------------------------------------------------ */
+/* `inline` so utilities emit var() references and follow the mode swap above
+   instead of baking in the light values at build time. */
+@theme inline {
+  /* Semantic names kept from the previous system so every existing utility
+     (bg-card, text-muted-foreground, border-border, ...) keeps working. */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--sunken);
+  --color-muted-foreground: var(--ink-3);
+  --color-accent: var(--surface-2);
+  --color-border: var(--rule);
+  --color-border-strong: var(--rule-strong);
+  --color-ring: var(--accent);
+
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-foreground: var(--accent-on);
+
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--danger-on);
+
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  /* Domain encodings. Each is an alias onto a categorical slot so the whole
+     app moves together when a slot is re-stepped. */
+  --color-cat-1: var(--cat-1);
+  --color-cat-2: var(--cat-2);
+  --color-cat-3: var(--cat-3);
+  --color-cat-4: var(--cat-4);
+  --color-cat-5: var(--cat-5);
+
+  --color-sex-male: var(--cat-1);
+  --color-sex-female: var(--cat-5);
+  --color-sex-unknown: var(--ink-3);
+
+  --color-event-birth: var(--cat-3);
+  --color-event-marriage: var(--cat-5);
+  --color-event-child: var(--cat-1);
+  --color-event-death: var(--ink-3);
+  --color-event-other: var(--cat-2);
+
+  --color-branch-1: var(--cat-4);
+  --color-branch-2: var(--cat-2);
+  --color-branch-3: var(--cat-3);
+
+  --font-display: "EB Garamond Variable", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "Cascadia Code", monospace;
+
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* --- Base ----------------------------------------------------------------- */
+
+/* `clip`, never `hidden`: overflow:hidden on an ancestor silently kills
+   position:sticky on every descendant, including the header. */
+html,
+body {
+  overflow-x: clip;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  border-color: var(--rule);
+}
+
+/* Long compound and hyphenated names ("Saint-Rémy-de-Provence",
+   "Châtillon-sur-Chalaronne") have few break opportunities and will otherwise
+   overflow a 320px viewport. min-width:0 is the half that is easy to forget:
+   a grid/flex child refuses to shrink below its content without it, so the
+   wrap rule never gets a chance to fire. */
+h1,
+h2,
+h3,
+.display {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-feature-settings: "liga", "kern";
+  letter-spacing: -0.005em;
+}
+
+/* Focus ring is deliberately outside every transition: a ring that fades in
+   is a ring a keyboard user has already moved past. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 26%, transparent);
+}
+
+/* Tabular figures wherever numbers are compared down a column. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* --- Motion --------------------------------------------------------------- */
+/* MOTION_INTENSITY 3: motion exists to acknowledge an action or to soften a
+   content swap. There is no scroll choreography and nothing loops. */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+.animate-fade-in-up { animation: fade-in-up 0.28s var(--ease-out-expo) both; }
+.animate-fade-in    { animation: fade-in 0.2s ease both; }
+.animate-scale-in   { animation: scale-in 0.16s var(--ease-out-expo) both; }
+
+.animate-stagger-1 { animation-delay: 0.04s; }
+.animate-stagger-2 { animation-delay: 0.08s; }
+.animate-stagger-3 { animation-delay: 0.12s; }
+.animate-stagger-4 { animation-delay: 0.16s; }
+
+.animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    color-mix(in oklab, var(--surface-2) 55%, var(--surface)) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-shimmer {
+    background-image: none;
+    background-color: var(--surface-2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+/* --- Leaflet -------------------------------------------------------------- */
+
+.leaflet-container {
+  background: var(--sunken);
+  font-family: var(--font-sans);
+}
+
+/* The basemap itself is swapped per theme (CARTO light_all / dark_all) in
+   GenealogyMap, rather than filtered here: a CSS invert on raster tiles turns
+   place labels into muddy negatives and shifts every landmass hue. */
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+}
+
+.leaflet-popup-content {
+  color: var(--ink);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  margin: 10px 14px;
+}
+
+.leaflet-popup-content strong { color: var(--ink); font-weight: 600; }
+.leaflet-popup-content span { color: var(--ink-3); }
+
+.leaflet-popup-close-button { color: var(--ink-3) !important; }
+.leaflet-popup-close-button:hover { color: var(--ink) !important; }
+
+.leaflet-bar a {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--rule);
+}
+.leaflet-bar a:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.leaflet-control-attribution {
+  background: color-mix(in oklab, var(--surface) 82%, transparent) !important;
+  color: var(--ink-3) !important;
+  font-size: 0.625rem;
+}
+.leaflet-control-attribution a { color: var(--ink-3) !important; }
+
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background-color: color-mix(in oklab, var(--accent) 22%, transparent) !important;
+}
+
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background-color: var(--accent) !important;
+  color: var(--accent-on) !important;
+  font-weight: 600;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+}
