@@ -13,9 +13,12 @@ CREATE EXTENSION IF NOT EXISTS unaccent;
 -- match operator); the GIN trigram indexes below are NOT optional.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- Immutable wrapper required to use unaccent() in index expressions.
+-- Immutable wrapper required to use unaccent() in index expressions. Both the function
+-- and its dictionary are schema-qualified: pg_dump/pg_restore run with an empty
+-- search_path, and an unqualified unaccent() made every restore of this database fail
+-- while building the indexes on it (found 2026-10-05).
 CREATE OR REPLACE FUNCTION unaccent_lower(text) RETURNS text AS $$
-    SELECT lower(unaccent($1))
+    SELECT lower(public.unaccent('public.unaccent'::regdictionary, $1))
 $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 -- surname_key(): collapse the written endings that are ONE SOUND in French.
@@ -46,7 +49,7 @@ $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 -- survive lower(), so that feeding a key back through the function returns
 -- itself instead of quietly folding a second time.
 CREATE OR REPLACE FUNCTION surname_key(text) RETURNS text AS $$
-    SELECT regexp_replace(lower(unaccent($1)), '(ez|ey|ay)$', '~')
+    SELECT regexp_replace(lower(public.unaccent('public.unaccent'::regdictionary, $1)), '(ez|ey|ay)$', '~')
 $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 -- ---------------------------------------------------------------------------
