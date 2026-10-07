@@ -17,6 +17,7 @@ import {
   useSearch,
   useSearchCount,
   useStats,
+  useTree,
   useDistinctions,
   useProfessions,
   useOnThisDay,
@@ -294,6 +295,7 @@ function ArbrePage() {
   delete countParams.offset
   const { data: countData } = useSearchCount(countParams, !!hasFilter)
   const { data: stats } = useStats()
+  const treeRoot = useTree().data?.sosa_root
   const { data: onThisDay } = useOnThisDay()
 
   // Accumulate pages for infinite scroll
@@ -605,13 +607,15 @@ function ArbrePage() {
                       hint={stats ? `${stats.geocoded_places} lieux` : 'Lieux géolocalisés'}
                     />
                     <ShortcutLink to="/stats" icon={BarChart2} label="Statistiques" hint="Vue d'ensemble" />
-                    <ShortcutLink
-                      to="/tree/$id"
-                      params={{ id: 'I1' }}
-                      icon={GitBranch}
-                      label="Arbre"
-                      hint="Ascendants et descendants"
-                    />
+                    {treeRoot && (
+                      <ShortcutLink
+                        to="/tree/$id"
+                        params={{ id: treeRoot.id }}
+                        icon={GitBranch}
+                        label="Arbre"
+                        hint="Ascendants et descendants"
+                      />
+                    )}
                   </div>
                 </Section>
               </div>

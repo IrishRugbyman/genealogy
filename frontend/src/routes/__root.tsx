@@ -3,27 +3,10 @@ import { Menu, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@/components/ui/Button'
 import { FamilyAccessButton } from '@/components/ui/FamilyAccess'
+import { DesktopNav, MobileNav } from '@/components/ui/SiteNav'
 import { TextSizeToggle } from '@/components/ui/TextSizeToggle'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { cn } from '@/lib/utils'
-
-const NAV_ITEMS = [
-  { to: '/', label: 'Recherche' },
-  { to: '/families', label: 'Familles' },
-  { to: '/map', label: 'Carte' },
-  { to: '/stats', label: 'Statistiques' },
-  { to: '/professions', label: 'Métiers' },
-  { to: '/distinctions', label: 'Distinctions' },
-  { to: '/military-ranks', label: 'Militaire' },
-  { to: '/bans', label: 'Lieux' },
-  { to: '/gaps', label: 'Qualité' },
-  { to: '/depot', label: 'Dépôt' },
-] as const
-
-function isActive(to: string, pathname: string): boolean {
-  if (to === '/') return pathname === '/'
-  return pathname.startsWith(to)
-}
 
 /* The wordmark is set in the display face rather than paired with a stock
    tree glyph. A lucide TreePine next to the word "Généalogie" was the most
@@ -38,54 +21,6 @@ function Wordmark({ onClick }: { onClick?: () => void }) {
       <span className="font-display text-lg font-medium tracking-[-0.01em] text-foreground transition-colors group-hover:text-primary">
         Généalogie
       </span>
-    </Link>
-  )
-}
-
-function DesktopNavItem({ to, label }: { to: string; label: string }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const active = isActive(to, pathname)
-  return (
-    <Link
-      to={to}
-      aria-current={active ? 'page' : undefined}
-      className={cn(
-        'relative rounded-[var(--radius-sm)] px-2 py-1 text-sm transition-colors duration-150',
-        'after:absolute after:inset-x-2 after:-bottom-[13px] after:h-px after:transition-colors after:content-[""]',
-        active
-          ? 'font-medium text-foreground after:bg-primary'
-          : 'text-ink-3 after:bg-transparent hover:text-foreground',
-      )}
-    >
-      {label}
-    </Link>
-  )
-}
-
-function MobileNavItem({
-  to,
-  label,
-  onClose,
-}: {
-  to: string
-  label: string
-  onClose: () => void
-}) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const active = isActive(to, pathname)
-  return (
-    <Link
-      to={to}
-      aria-current={active ? 'page' : undefined}
-      onClick={onClose}
-      className={cn(
-        'border-b border-border px-6 py-3.5 text-base transition-colors active:bg-surface-2',
-        active
-          ? 'border-l-2 border-l-primary pl-[22px] font-medium text-foreground'
-          : 'text-ink-2 hover:text-foreground',
-      )}
-    >
-      {label}
     </Link>
   )
 }
@@ -169,7 +104,7 @@ function RootLayout() {
       <header className="sticky top-0 z-40 border-b border-border bg-[color-mix(in_oklab,var(--paper)_88%,transparent)] backdrop-blur-md">
         <div
           ref={nav.rowRef}
-          className="relative mx-auto flex h-14 max-w-[1600px] items-center gap-4 overflow-hidden px-4 sm:px-6"
+          className="relative mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 sm:px-6"
         >
           <span ref={(el) => { nav.fixedRefs.current[0] = el }} className="shrink-0">
             <Wordmark />
@@ -181,16 +116,12 @@ function RootLayout() {
             aria-hidden="true"
             className="invisible pointer-events-none absolute left-0 top-0 flex w-max items-center gap-0.5"
           >
-            {NAV_ITEMS.map((item) => (
-              <DesktopNavItem key={item.to} to={item.to} label={item.label} />
-            ))}
+            <DesktopNav probe />
           </div>
 
           {nav.fits && (
             <nav aria-label="Navigation principale" className="flex items-center gap-0.5">
-              {NAV_ITEMS.map((item) => (
-                <DesktopNavItem key={item.to} to={item.to} label={item.label} />
-              ))}
+              <DesktopNav />
             </nav>
           )}
 
@@ -256,14 +187,7 @@ function RootLayout() {
             <FamilyAccessButton className="w-full" />
           </div>
           <nav aria-label="Navigation" className="flex flex-col overflow-y-auto">
-            {NAV_ITEMS.map((item) => (
-              <MobileNavItem
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                onClose={() => setDrawerOpen(false)}
-              />
-            ))}
+            <MobileNav onNavigate={() => setDrawerOpen(false)} />
           </nav>
         </div>
       </div>
