@@ -144,7 +144,7 @@ function CenturyChart({ data }: { data: Array<{ century: number | null; n: numbe
       </div>
       <div className="mt-1.5 flex gap-1 border-t border-border pt-1.5">
         {filtered.map((d) => (
-          <div key={d.century} className="min-w-0 flex-1 text-center font-mono text-[9px] tabular-nums text-ink-3">
+          <div key={d.century} className="min-w-0 flex-1 text-center font-mono text-[0.75rem] tabular-nums text-ink-3">
             {String(d.century).slice(0, 2)}
           </div>
         ))}
@@ -183,7 +183,7 @@ function LifespanChart({ data }: { data: Array<{ bucket: number; n: number }> })
       </div>
       <div className="mt-1.5 flex gap-1 border-t border-border pt-1.5">
         {data.map((d) => (
-          <div key={d.bucket} className="min-w-0 flex-1 text-center font-mono text-[9px] tabular-nums text-ink-3">
+          <div key={d.bucket} className="min-w-0 flex-1 text-center font-mono text-[0.75rem] tabular-nums text-ink-3">
             {d.bucket}
           </div>
         ))}
@@ -270,7 +270,7 @@ function ProfessionsByCenturyChart({ data }: { data: Array<{ century: number; [c
 
       <div className="mt-1.5 flex gap-2 border-t border-border pt-1.5 sm:gap-3">
         {rows.map((r) => (
-          <div key={r.century} className="min-w-0 flex-1 text-center font-mono text-[9px] tabular-nums text-ink-3">
+          <div key={r.century} className="min-w-0 flex-1 text-center font-mono text-[0.75rem] tabular-nums text-ink-3">
             {r.century}
           </div>
         ))}

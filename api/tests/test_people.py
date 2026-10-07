@@ -91,3 +91,32 @@ def test_common_ancestors_404(client, sosa_root_id):
         params={"other": "I99999999"},
     )
     assert r.status_code == 404
+
+
+def test_person_parents_carry_their_years(client):
+    """The parents block shows lifespans: they must match the parents' own records."""
+    import os
+
+    import psycopg2
+    import psycopg2.extras
+
+    conn = psycopg2.connect(os.environ.get("GENEALOGY_DSN", "dbname=genealogy"))
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT pc.child_id, f.birth_year AS fb, f.death_year AS fd,
+               m.birth_year AS mb, m.death_year AS md
+        FROM parent_child pc
+        JOIN individuals f ON f.id = pc.father_id
+        JOIN individuals m ON m.id = pc.mother_id
+        WHERE f.birth_year < 1800 AND f.death_year IS NOT NULL
+          AND m.birth_year < 1800 AND m.death_year IS NOT NULL
+        ORDER BY pc.child_id
+        LIMIT 1
+        """
+    )
+    row = cur.fetchone()
+    conn.close()
+    parents = client.get(f"/api/people/{row['child_id']}").json()["parents"]
+    assert (parents["father_birth_year"], parents["father_death_year"]) == (row["fb"], row["fd"])
+    assert (parents["mother_birth_year"], parents["mother_death_year"]) == (row["mb"], row["md"])

@@ -53,7 +53,7 @@ export function SegmentedControl({
           >
             {opt.label}
             {opt.count != null && (
-              <span className="font-mono text-[10px] tabular-nums text-ink-3">{opt.count}</span>
+              <span className="font-mono text-[0.75rem] tabular-nums text-ink-3">{opt.count}</span>
             )}
           </button>
         )

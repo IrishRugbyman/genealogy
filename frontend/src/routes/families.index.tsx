@@ -298,7 +298,7 @@ function FamiliesBrowserPage() {
                           </span>
                         </div>
                         {f.child_count > 0 && (
-                          <span className="shrink-0 rounded-[var(--radius-sm)] border border-border px-1.5 py-px font-mono text-[11px] leading-5 tabular-nums text-ink-3">
+                          <span className="shrink-0 rounded-[var(--radius-sm)] border border-border px-1.5 py-px font-mono text-[0.8125rem] leading-5 tabular-nums text-ink-3">
                             {f.child_count}
                           </span>
                         )}

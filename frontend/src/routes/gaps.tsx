@@ -82,7 +82,7 @@ export function GapsPage() {
             onClick={() => setFilter(key)}
           >
             {label}
-            <span className="font-mono text-[11px] tabular-nums opacity-70">{counts[key]}</span>
+            <span className="font-mono text-[0.8125rem] tabular-nums opacity-70">{counts[key]}</span>
           </Button>
         ))}
       </div>

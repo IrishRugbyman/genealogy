@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 import app.db as _db
 from app.db import get_cursor
+from app.privacy import hidden_ids
 from app.schemas import FamilyDetail, FamilySummary
 
 router = APIRouter(prefix="/api/families", tags=["families"])
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/families", tags=["families"])
 
 @router.get("", response_model=list[FamilySummary])
 def list_families(
+    request: Request,
     name: str | None = Query(None, description="Filter by husband or wife name"),
     place: str | None = Query(None, description="Filter by marriage place locality"),
     year_from: int | None = Query(None, description="Min marriage year"),
@@ -32,11 +34,13 @@ def list_families(
         min_children=min_children,
         limit=limit,
         offset=offset,
+        exclude_ids=hidden_ids(request),
     )
 
 
 @router.get("/count")
 def count_families(
+    request: Request,
     name: str | None = Query(None),
     place: str | None = Query(None),
     year_from: int | None = Query(None),
@@ -52,6 +56,7 @@ def count_families(
         year_from=year_from,
         year_to=year_to,
         min_children=min_children,
+        exclude_ids=hidden_ids(request),
     )
     return {"count": n}
 

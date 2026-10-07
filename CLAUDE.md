@@ -49,6 +49,7 @@ All deployment-specific values come from `api/.env` (read by the systemd unit th
 | `GENEALOGY_SOSA_ROOT` | Individual id numbered Sosa 1 | no Sosa numbering at all |
 | `GENEALOGY_BRANCH_LABELS` | Names of branch 1 (root's father's side) and 2, comma-separated | `Paternelle,Maternelle` |
 | `GENEALOGY_UPLOAD_PASSWORD` | Shared password of the `/depot` upload page | uploads refused (503) |
+| `GENEALOGY_VIEW_PASSWORD` | Family password that unlocks the living (see below) | the upload password; neither set = nobody can unlock, the living stay hidden |
 | `GENEALOGY_DEPOT_DIR` | Where `/depot` batches land | uploads refused (503) |
 | `VITE_DEPOT_CONTACT` | Who the depot page says to warn on an error | "l'administrateur du site" |
 
@@ -90,12 +91,20 @@ The tree is lint-clean; keep it that way (pre-commit runs ruff on every commit).
   (`/api/places/{id}` vs `/api/communes/{insee}`), the frontend routes and the map layers.
 - The tree is **endogamous**: recursive ancestor CTEs use `UNION`, not `UNION ALL`, or they
   never terminate.
+- **The living are private.** Anyone with no recorded death who was born, or is estimated
+  born, less than 100 years ago (`queries.infer_living`) is masked as "Personne vivante" for
+  a visitor who has not signed in with the family password, and left out of every listing.
+  The masking is one response middleware (`api/app/privacy.py`), so a new endpoint is
+  covered without doing anything; `api/tests/test_privacy.py` checks no route leaks.
 
 ## Deployment
 
 - API: systemd `genealogy-api.service` (`api/genealogy-api.service`), 2 uvicorn workers,
   `127.0.0.1:8005`
 - Frontend: `npm run build` -> `frontend/dist/`, served directly by nginx
+- Nginx sends `Cache-Control: no-cache` on `index.html` (every SPA route falls back to it)
+  and a one-year immutable cache on `/assets/`. Without the first, browsers guess a lifetime
+  from `Last-Modified` and keep running an old build for days after a deploy.
 - Nginx: `api/nginx-genealogy.conf` is a reference copy. The live vhost in
   `/etc/nginx/sites-enabled/` is a regular file carrying certbot's TLS block, so an edit
   here must be carried over by hand (the header of that file says how)

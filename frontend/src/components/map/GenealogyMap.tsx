@@ -119,7 +119,7 @@ function choroplethPopup(props: Record<string, unknown>, pal: MapPalette): strin
   // Commune features carry an INSEE -> link to the commune page; aggregate layers
   // (country/region/department) don't, so the link only appears at commune level.
   const link = insee
-    ? `<br/><a href="/communes/${insee}" style="color:${pal.link};text-decoration:none;font-size:11px">Voir les personnes &rarr;</a>`
+    ? `<br/><a href="/communes/${insee}" style="color:${pal.link};text-decoration:none;font-size:0.8125rem">Voir les personnes &rarr;</a>`
     : ''
   const total = b + d + m
   if (total === 0) return `<strong>${name}</strong><br/><span>Aucun événement</span>${link}`
@@ -139,7 +139,7 @@ function placePopup(place: PlaceGeo, pal: MapPalette): string {
     place.marriage_count && `${place.marriage_count} mar.`,
   ].filter(Boolean)
   if (stats.length) parts.push(stats.join(' · '))
-  parts.push(`<a href="/places/${place.id}" style="color:${pal.link};text-decoration:none;font-size:11px">Voir les personnes &rarr;</a>`)
+  parts.push(`<a href="/places/${place.id}" style="color:${pal.link};text-decoration:none;font-size:0.8125rem">Voir les personnes &rarr;</a>`)
   return parts.join('<br/>')
 }
 
@@ -271,12 +271,12 @@ function PlaceSearch({ places, onSelect }: { places: PlaceGeo[]; onSelect: (p: P
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
                     <span className="truncate font-medium text-foreground">{placeHead(p)}</span>
-                    <span className="shrink-0 rounded-[var(--radius-sm)] bg-surface-2 px-1 py-px text-[10px] text-ink-3">
+                    <span className="shrink-0 rounded-[var(--radius-sm)] bg-surface-2 px-1 py-px text-[0.75rem] text-ink-3">
                       {placeType(p)}
                     </span>
                   </span>
                   {placeCrumb(p).length > 0 && (
-                    <span className="block truncate text-[11px] text-ink-3">
+                    <span className="block truncate text-[0.8125rem] text-ink-3">
                       {placeCrumb(p).join(' · ')}
                     </span>
                   )}

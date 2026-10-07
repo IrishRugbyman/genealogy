@@ -396,7 +396,7 @@ function ArbrePage() {
             <SlidersHorizontal size={14} aria-hidden="true" />
             <span className="hidden sm:inline">Filtres</span>
             {activeFilterCount > 0 && (
-              <span className="rounded-[var(--radius-sm)] bg-primary px-1.5 font-mono text-[10px] leading-4 tabular-nums text-primary-foreground">
+              <span className="rounded-[var(--radius-sm)] bg-primary px-1.5 font-mono text-[0.75rem] leading-4 tabular-nums text-primary-foreground">
                 {activeFilterCount}
               </span>
             )}

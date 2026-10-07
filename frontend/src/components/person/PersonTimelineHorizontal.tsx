@@ -72,11 +72,11 @@ function EventNode({ e }: { e: TimelineEvent }) {
 
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-center text-[11px] font-medium leading-snug text-foreground">
+      <span className="text-center text-[0.8125rem] font-medium leading-snug text-foreground">
         {primary}
       </span>
       {secondary && (
-        <span className="text-center text-[10px] leading-snug text-ink-3">{secondary}</span>
+        <span className="text-center text-[0.75rem] leading-snug text-ink-3">{secondary}</span>
       )}
     </div>
   )
@@ -135,7 +135,7 @@ export function PersonTimelineHorizontal({ timeline }: { timeline: TimelineData 
               className="absolute flex flex-col items-center"
               style={{ left: xs[i], top: 0, transform: 'translateX(-50%)', width: SLOT }}
             >
-              <span className="mb-1 font-mono text-[10px] font-medium text-ink-3">
+              <span className="mb-1 font-mono text-[0.75rem] font-medium text-ink-3">
                 {formatTimelineYear(e.year, e.qualifier, e.year2)}
               </span>
 

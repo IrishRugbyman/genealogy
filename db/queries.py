@@ -14,6 +14,7 @@ stripped), e.g. 'I5', 'F13'. Always bind as %s (psycopg2 sends TEXT).
 
 from __future__ import annotations
 
+from collections.abc import Collection, Iterable
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -38,6 +39,7 @@ def search_individuals(
     sort: str = "name",
     # kept for backwards compat with any callers, merged into name scoring
     surname: str | None = None,
+    exclude_ids: Collection[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Ranked search over individuals using token matching + trigram fuzzy scoring.
@@ -48,6 +50,8 @@ def search_individuals(
     year_from/year_to - inclusive birth OR death year range
     sex       - 'M', 'F', or 'U'
     branch    - 1=father's side of the Sosa root, 2=mother's side, 3=both
+    exclude_ids - individuals left out of the results entirely (the API passes the
+                living for a visitor who is not signed in, see `living_individual_ids`)
 
     Requires pg_trgm extension and GIN indexes on name_normalized, surname, given_name.
     """
@@ -95,6 +99,10 @@ def search_individuals(
             " WHERE id_f.individual_id = i.id AND id_f.distinction_id = %s)"
         )
         hard_params.append(distinction_id)
+
+    if exclude_ids:
+        hard_conds.append("NOT (i.id = ANY(%s))")
+        hard_params.append(list(exclude_ids))
 
     place_join = ""
     if place:
@@ -253,6 +261,7 @@ def count_individuals(
     profession_id: int | None = None,
     distinction_id: int | None = None,
     surname: str | None = None,
+    exclude_ids: Collection[str] | None = None,
 ) -> int:
     """Count individuals matching the same filters as search_individuals (no pagination)."""
     hard_conds: list[str] = []
@@ -298,6 +307,10 @@ def count_individuals(
             " WHERE id_f.individual_id = i.id AND id_f.distinction_id = %s)"
         )
         hard_params.append(distinction_id)
+
+    if exclude_ids:
+        hard_conds.append("NOT (i.id = ANY(%s))")
+        hard_params.append(list(exclude_ids))
 
     place_join = ""
     if place:
@@ -438,7 +451,9 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
         """
         SELECT
             pc.father_id, f.name AS father_name,
+            f.birth_year AS father_birth_year, f.death_year AS father_death_year,
             pc.mother_id, m.name AS mother_name,
+            m.birth_year AS mother_birth_year, m.death_year AS mother_death_year,
             pc.family_id
         FROM parent_child pc
         LEFT JOIN individuals f ON f.id = pc.father_id
@@ -455,8 +470,12 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
         else {
             "father_id": None,
             "father_name": None,
+            "father_birth_year": None,
+            "father_death_year": None,
             "mother_id": None,
             "mother_name": None,
+            "mother_birth_year": None,
+            "mother_death_year": None,
             "family_id": None,
         }
     )
@@ -697,6 +716,100 @@ def build_sosa_map(cur, root: str | None) -> dict[str, int]:
     return sosa_map
 
 
+# A generation, in years: what separates a parent's birth from a child's. Also the
+# age at which a marriage is assumed to happen, for someone with no birth date.
+GENERATION_YEARS = 28
+MARRIAGE_AGE = 25
+
+
+def _offer_birth(
+    offers: dict[str, int], born: dict[str, int], person_id: str | None, year: int | None
+) -> None:
+    """Record `year` as a candidate birth estimate for someone not dated yet.
+
+    Several relatives may offer a year: the latest wins, which is the cautious
+    choice when the question is "could this person still be alive".
+    """
+    if person_id and person_id not in born and year is not None:
+        offers[person_id] = max(offers.get(person_id, year), year)
+
+
+def infer_living(
+    people: Iterable[dict[str, Any]],
+    families: Iterable[dict[str, Any]],
+    parent_child: Iterable[dict[str, Any]],
+    born_after: int,
+) -> set[str]:
+    """Ids of the individuals who must be treated as possibly living.
+
+    Someone is possibly living when nothing records their death (no death or
+    burial, dated or not) and their birth, known or estimated, falls in or after
+    `born_after`. A missing birth date is estimated from the nearest relatives:
+    a spouse's birth, a marriage at `MARRIAGE_AGE`, a child born
+    `GENERATION_YEARS` later or a parent born that much earlier. The estimate
+    spreads a few steps through the tree, so the undated spouse of an undated
+    child of a 1950s couple is still caught. Someone nothing can be estimated
+    for is treated as dead: in this tree that is an old, isolated stub.
+
+    Pure function, so it can be tested on hand-made rows. `people` rows carry
+    `id`, `born` (birth or baptism year) and `dead` (bool); `families` rows
+    `husband_id`, `wife_id`, `marriage_year`; `parent_child` rows `child_id`,
+    `father_id`, `mother_id`.
+    """
+    people = list(people)
+    families = list(families)
+    parent_child = list(parent_child)
+    born: dict[str, int] = {p["id"]: p["born"] for p in people if p["born"] is not None}
+
+    for _ in range(4):  # a few steps is plenty: estimates of estimates get vague
+        offers: dict[str, int] = {}
+        for f in families:
+            husband, wife, married = f["husband_id"], f["wife_id"], f["marriage_year"]
+            if married is not None:
+                _offer_birth(offers, born, husband, married - MARRIAGE_AGE)
+                _offer_birth(offers, born, wife, married - MARRIAGE_AGE)
+            _offer_birth(offers, born, husband, born.get(wife))
+            _offer_birth(offers, born, wife, born.get(husband))
+        for r in parent_child:
+            child = born.get(r["child_id"])
+            for parent in (r["father_id"], r["mother_id"]):
+                if child is not None:
+                    _offer_birth(offers, born, parent, child - GENERATION_YEARS)
+                if parent in born:
+                    _offer_birth(offers, born, r["child_id"], born[parent] + GENERATION_YEARS)
+        if not offers:
+            break
+        born.update(offers)
+
+    return {
+        p["id"] for p in people if not p["dead"] and p["id"] in born and born[p["id"]] >= born_after
+    }
+
+
+def living_individual_ids(cur, born_after: int) -> set[str]:
+    """Individuals who may be alive: no recorded death, born in or after `born_after`.
+
+    The API calls this once at startup with the current year minus 100 and hides
+    these people from visitors who are not signed in. See `infer_living` for how a
+    missing birth date is estimated.
+    """
+    cur.execute(
+        """
+        SELECT id,
+               coalesce(birth_year, baptism_year) AS born,
+               (death_year IS NOT NULL OR death_raw IS NOT NULL
+                OR burial_year IS NOT NULL OR burial_raw IS NOT NULL) AS dead
+        FROM individuals
+        """
+    )
+    people = cur.fetchall()
+    cur.execute("SELECT husband_id, wife_id, marriage_year FROM families")
+    families = cur.fetchall()
+    cur.execute("SELECT child_id, father_id, mother_id FROM parent_child")
+    parent_child = cur.fetchall()
+    return infer_living(people, families, parent_child, born_after)
+
+
 def get_ancestors(cur, ind_id: str, max_depth: int = 12) -> list[dict[str, Any]]:
     """
     Recursive CTE returning all ancestors up to max_depth generations.
@@ -861,8 +974,12 @@ def search_families(
     min_children: int | None = None,
     limit: int = 50,
     offset: int = 0,
+    exclude_ids: Collection[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Searchable family list with child counts."""
+    """Searchable family list with child counts.
+
+    `exclude_ids` drops every family in which one of those individuals is a spouse.
+    """
     conds: list[str] = []
     params: list[Any] = []
 
@@ -888,6 +1005,12 @@ def search_families(
     if min_children is not None:
         conds.append("(SELECT count(*) FROM family_children fc WHERE fc.family_id = f.id) >= %s")
         params.append(min_children)
+
+    if exclude_ids:
+        conds.append(
+            "NOT (coalesce(f.husband_id, '') = ANY(%s) OR coalesce(f.wife_id, '') = ANY(%s))"
+        )
+        params.extend([list(exclude_ids), list(exclude_ids)])
 
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     params.extend([limit, offset])
@@ -930,6 +1053,7 @@ def count_families(
     year_from: int | None = None,
     year_to: int | None = None,
     min_children: int | None = None,
+    exclude_ids: Collection[str] | None = None,
 ) -> int:
     """Count families matching the same filters as search_families."""
     conds: list[str] = []
@@ -957,6 +1081,12 @@ def count_families(
     if min_children is not None:
         conds.append("(SELECT count(*) FROM family_children fc WHERE fc.family_id = f.id) >= %s")
         params.append(min_children)
+
+    if exclude_ids:
+        conds.append(
+            "NOT (coalesce(f.husband_id, '') = ANY(%s) OR coalesce(f.wife_id, '') = ANY(%s))"
+        )
+        params.extend([list(exclude_ids), list(exclude_ids)])
 
     where = ("WHERE " + " AND ".join(conds)) if conds else ""
     place_join = "LEFT JOIN places mp ON mp.id = f.marriage_place_id" if place else ""

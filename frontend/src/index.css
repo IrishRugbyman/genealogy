@@ -213,6 +213,17 @@
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "Cascadia Code", monospace;
 
+  /* Type scale, one step up from Tailwind's default (12/14/16): the smallest
+     text in the app is 13px and body copy 15px, so a reader over sixty does
+     not have to lean in. Everything is rem, so the text-size control in the
+     header (html[data-text-size], below) scales it all together. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.6;
+
   --radius-sm: 6px;
   --radius: 8px;
   --radius-md: 8px;
@@ -234,6 +245,10 @@ html,
 body {
   overflow-x: clip;
 }
+
+/* The reader's text-size choice (lib/textSize.ts), stamped before first paint. */
+html[data-text-size="large"] { font-size: 112.5%; }
+html[data-text-size="xlarge"] { font-size: 125%; }
 
 html,
 body,
@@ -381,7 +396,7 @@ h3,
 
 .leaflet-popup-content {
   color: var(--ink);
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
   margin: 10px 14px;
 }

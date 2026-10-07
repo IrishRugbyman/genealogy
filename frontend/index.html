@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/tree.svg" />
     <meta name="color-scheme" content="light dark" />
+    <!-- Private family site: kept out of search engines (robots.txt says the same). -->
+    <meta name="robots" content="noindex, nofollow" />
     <meta
       name="description"
       content="Arbre généalogique familial : recherche, lieux, familles, métiers et statistiques, à partir d'un fichier GEDCOM personnel."
@@ -16,6 +18,10 @@
       // stamps nothing and lets prefers-color-scheme decide.
       (function () {
         try {
+          var s = localStorage.getItem('genealogy-text-size')
+          if (s === 'large' || s === 'xlarge') {
+            document.documentElement.setAttribute('data-text-size', s)
+          }
           var t = localStorage.getItem('genealogy-theme')
           if (t === 'light' || t === 'dark') {
             document.documentElement.setAttribute('data-theme', t)

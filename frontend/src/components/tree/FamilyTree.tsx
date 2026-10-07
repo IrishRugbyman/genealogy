@@ -5,7 +5,8 @@ import { select } from 'd3-selection'
 import { linkVertical } from 'd3-shape'
 import { Crosshair, Minus, Plus } from 'lucide-react'
 import { IconButton } from '@/components/ui/Button'
-import { TreeNode, NODE_W, NODE_H } from './TreeNode'
+import { TreeNode, nodeSize } from './TreeNode'
+import { useTextScale } from '@/lib/textSize'
 import {
   buildHierarchies,
   expandUp,
@@ -30,6 +31,7 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<SVGGElement>(null)
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  const textScale = useTextScale()
 
   // Set up zoom once, apply initial centering (focus node is always at SVG origin)
   useEffect(() => {
@@ -61,6 +63,7 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
   // Build layout
   const { anc, desc } = buildHierarchies(state, cache)
 
+  const { w: NODE_W, h: NODE_H } = nodeSize(textScale)
   const treeLayout = d3tree<{ id: string }>().nodeSize([NODE_W + GAP_X, NODE_H + GAP_Y])
 
   treeLayout(anc as any)
@@ -142,6 +145,8 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
                 style={{ overflow: 'visible' }}
               >
                 <TreeNode
+                  width={NODE_W}
+                  height={NODE_H}
                   person={person}
                   isLoading={loading}
                   isFocus={isFocus}

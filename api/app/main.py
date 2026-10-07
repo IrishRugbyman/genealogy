@@ -1,14 +1,17 @@
 """
 Genealogy API - public read-only family tree.
 
-Every endpoint is a GET and needs no auth (public tree, read-only). The one
-exception is `POST /api/uploads`, which writes files - never the database - into
-`data/actes/depot/` behind a shared password; see `routers/uploads.py`.
+Every endpoint is a GET and needs no auth (public tree, read-only), but people who
+may still be alive are masked unless the browser signed in with the family
+password; see `privacy.py` and `routers/session.py`. The one write route is
+`POST /api/uploads`, which writes files - never the database - into the depot
+behind a shared password; see `routers/uploads.py`.
 Rate-limited to 120 req/min per IP.
 """
 
 from __future__ import annotations
 
+import datetime
 import os
 from contextlib import asynccontextmanager, suppress
 
@@ -18,7 +21,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app import db
+from app import db, privacy
 from app.limiter import limiter
 from app.routers import (
     bans,
@@ -30,6 +33,7 @@ from app.routers import (
     places,
     professions,
     search,
+    session,
     stats,
     uploads,
 )
@@ -48,7 +52,7 @@ def _branch_labels() -> dict[str, str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Open the connection pool and build the Sosa map, then tear them down.
+    """Open the connection pool, build the Sosa map and the living set, then tear down.
 
     The Sosa root is deployment config (`$GENEALOGY_SOSA_ROOT`, an individual id),
     not code: unset, or pointing at nobody, the tree simply has no numbering. The
@@ -68,6 +72,8 @@ async def lifespan(app: FastAPI):
             "branches": _branch_labels(),
         }
         app.state.sosa_map = db.queries.build_sosa_map(_cur, root["id"] if root else None)
+        born_after = datetime.date.today().year - privacy.LIVING_HORIZON_YEARS
+        app.state.living = frozenset(db.queries.living_individual_ids(_cur, born_after))
     finally:
         with suppress(StopIteration):
             next(_sosa_gen)
@@ -90,6 +96,8 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Innermost first: the privacy filter must see the JSON before GZip compresses it.
+app.add_middleware(privacy.PrivacyMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
 app.add_middleware(
     CORSMiddleware,
@@ -98,7 +106,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:3000",
     ],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -114,6 +122,7 @@ app.include_router(distinctions.router)
 app.include_router(military_ranks.router)
 app.include_router(places.router)
 app.include_router(uploads.router)
+app.include_router(session.router)
 
 
 @app.get("/api/health", response_model=Health, tags=["health"])

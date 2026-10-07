@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 import app.db as _db
 from app.db import get_cursor
+from app.privacy import hidden_ids
 from app.schemas import PersonSummary
 
 router = APIRouter(prefix="/api", tags=["search"])
@@ -47,6 +48,7 @@ def search_individuals(
         limit=limit,
         offset=offset,
         sort=sort,
+        exclude_ids=hidden_ids(request),
     )
     sosa_map: dict[str, int] = request.app.state.sosa_map
     for row in results:
@@ -56,6 +58,7 @@ def search_individuals(
 
 @router.get("/search/count")
 def count_individuals(
+    request: Request,
     name: str | None = Query(None),
     place: str | None = Query(None),
     year_from: int | None = Query(None),
@@ -79,5 +82,6 @@ def count_individuals(
         profession_category=profession_category,
         profession_id=profession_id,
         distinction_id=distinction_id,
+        exclude_ids=hidden_ids(request),
     )
     return {"count": n}

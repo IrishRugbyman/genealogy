@@ -181,7 +181,10 @@ export function buildTimeline(person: PersonDetail): TimelineData {
     }
   }
 
+  // A union or a birth involving someone hidden as living has no date or place
+  // to show: it is left out rather than listed as an empty "Sans date" line.
   for (const s of person.spouses) {
+    if (s.spouse_living) continue
     const label = s.divorced ? 'Mariage (div.)' : 'Mariage'
     const place = s.marriage_locality || null
     const spouseName = s.spouse_name ?? 'Conjoint inconnu'
@@ -196,12 +199,13 @@ export function buildTimeline(person: PersonDetail): TimelineData {
         category: 'marriage',
         personId: s.spouse_id ?? undefined,
       })
-    } else {
-      undated.push({ label, sublabel: place ? `${spouseName} · ${place}` : spouseName })
     }
+    // An undated union is not listed under "Sans date": the Famille section
+    // above the timeline already shows every union, dated or not.
   }
 
   for (const c of person.children) {
+    if (c.living) continue
     const name = c.name ?? 'Enfant inconnu'
     const childPlace =
       formatPlaceObj({
@@ -220,9 +224,8 @@ export function buildTimeline(person: PersonDetail): TimelineData {
         category: 'child',
         personId: c.child_id,
       })
-    } else {
-      undated.push({ label: 'Naissance de', sublabel: name })
     }
+    // Same for an undated child: listed with their union in the Famille section.
   }
 
   const catOrder: Record<EventCategory, number> = {

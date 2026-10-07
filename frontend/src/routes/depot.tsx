@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   Camera,
   Check,
@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
@@ -16,11 +17,30 @@ import { Field, Input, Label } from '@/components/ui/Field'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Section } from '@/components/ui/Section'
-import { cn } from '@/lib/utils'
+import { SexMark } from '@/components/person/PersonChip'
+import { DEPOT_PASSWORD_KEY, useFamilyAccess, usePerson } from '@/lib/api'
+import { cn, formatLifespan } from '@/lib/utils'
+
+/* `?person=I123`: the page was opened from that person's "Corriger ou
+   compléter" button, and the message is about them. */
+interface DepotSearch {
+  person?: string
+}
 
 export const Route = createFileRoute('/depot')({
   component: DepotPage,
+  validateSearch: (search: Record<string, unknown>): DepotSearch => {
+    const person = typeof search.person === 'string' ? search.person : undefined
+    return person && /^I\d{1,7}$/.test(person) ? { person } : {}
+  },
 })
+
+/** Who a correction is about, as sent with it and shown above the form. */
+interface About {
+  id: string
+  label: string
+  sex: string | null
+}
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 // Who the family should tell when an upload fails. Set at build time in
@@ -43,7 +63,7 @@ const MAX_BATCH_BYTES = 250 * 1024 * 1024
 /* The password is remembered so a sender types it once, ever, on their own machine.
    It gates a drop-off directory, not personal data - the tree behind it is
    public - so localStorage is the right trade here. */
-const PASSWORD_KEY = 'genealogy.depot.password'
+const PASSWORD_KEY = DEPOT_PASSWORD_KEY
 
 const ACCEPT = 'image/*,.heic,.heif,.tif,.tiff,application/pdf'
 
@@ -123,6 +143,7 @@ function postBatch(
 // ---------------------------------------------------------------------------
 
 function PasswordGate({ onUnlock }: { onUnlock: (password: string) => void }) {
+  const { family, signIn } = useFamilyAccess()
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -137,6 +158,10 @@ function PasswordGate({ onUnlock }: { onUnlock: (password: string) => void }) {
     try {
       await postForm('/api/uploads/auth', form)
       localStorage.setItem(PASSWORD_KEY, value)
+      // Same password, by default, as the family access: open that too, so the
+      // living are visible without a second prompt. A refusal just means the
+      // deployment set them apart.
+      if (!family) signIn.mutate({ password: value, depot: false })
       onUnlock(value)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Échec')
@@ -156,7 +181,7 @@ function PasswordGate({ onUnlock }: { onUnlock: (password: string) => void }) {
         </span>
         <div>
           <p className="font-display text-lg text-foreground">Page protégée</p>
-          <p className="text-sm text-ink-2">Entrez le mot de passe pour déposer des images.</p>
+          <p className="text-sm text-ink-2">Entrez le mot de passe de la famille pour envoyer.</p>
         </div>
       </div>
 
@@ -198,7 +223,42 @@ function Thumbnail({ file }: { file: File }) {
   return <img src={url} alt="" className="h-full w-full object-cover" />
 }
 
-function DepotForm({ password, onLocked }: { password: string; onLocked: () => void }) {
+function AboutCard({ about }: { about: About }) {
+  return (
+    <div className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-border bg-card p-4">
+      <SexMark sex={about.sex} className="h-9 w-9 text-sm" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs uppercase tracking-wide text-ink-3">Au sujet de</p>
+        <Link
+          to="/people/$id"
+          params={{ id: about.id }}
+          className="block truncate text-base font-medium text-foreground hover:text-primary"
+        >
+          {about.label}
+        </Link>
+      </div>
+      <Link
+        to="/depot"
+        search={{}}
+        className="rounded-[var(--radius-sm)] p-1.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-foreground"
+        aria-label="Ne plus lier ce message à cette personne"
+        title="Ne plus lier ce message à cette personne"
+      >
+        <X size={16} aria-hidden="true" />
+      </Link>
+    </div>
+  )
+}
+
+function DepotForm({
+  password,
+  onLocked,
+  about,
+}: {
+  password: string
+  onLocked: () => void
+  about: About | null
+}) {
   const [files, setFiles] = useState<File[]>([])
   const [sender, setSender] = useState('')
   const [note, setNote] = useState('')
@@ -208,6 +268,13 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
   const [sent, setSent] = useState<UploadResult | null>(null)
 
   const pickRef = useRef<HTMLInputElement>(null)
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+
+  // On a correction the message is the point: put the cursor there as soon as
+  // the person it is about has loaded (the form mounts before that).
+  useEffect(() => {
+    if (about) noteRef.current?.focus()
+  }, [about?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const cameraRef = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
 
@@ -285,8 +352,10 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
     setFiles((current) => current.filter((_, i) => i !== index))
   }
 
+  const canSend = files.length > 0 || note.trim().length > 0
+
   async function send() {
-    if (files.length === 0 || busy) return
+    if (!canSend || busy) return
     if (totalBytes > MAX_BATCH_BYTES) {
       setError(
         `Envoi de ${formatBytes(totalBytes)} : la limite est 250 Mo. Envoyez-les en deux fois.`,
@@ -300,6 +369,10 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
     form.append('password', password)
     form.append('sender', sender)
     form.append('note', note)
+    if (about) {
+      form.append('person_id', about.id)
+      form.append('person_label', about.label)
+    }
     for (const file of files) form.append('files', file, file.name)
 
     try {
@@ -327,10 +400,16 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
         </span>
         <div>
           <p className="font-display text-xl text-foreground">
-            {sent.files === 1 ? 'Image reçue' : `${sent.files} images reçues`}
+            {sent.files === 0
+              ? 'Message reçu'
+              : sent.files === 1
+                ? 'Image reçue'
+                : `${sent.files} images reçues`}
           </p>
           <p className="mt-1 text-sm text-ink-2">
-            {formatBytes(sent.bytes)} enregistrés. Merci, je les classe et je reviens vers vous.
+            {sent.files === 0
+              ? 'Merci, je regarde et je corrige la fiche.'
+              : `${formatBytes(sent.bytes)} enregistrés. Merci, je les classe et je reviens vers vous.`}
           </p>
           <p className="mt-3 font-mono text-xs text-ink-3">{sent.batch}</p>
         </div>
@@ -342,10 +421,8 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
     )
   }
 
-  return (
-    <div className="flex flex-col gap-6">
-      {error && <ErrorBanner message={error} />}
-
+  const attachments = (
+    <>
       <div
         onDragEnter={onDragEnter}
         onDragOver={(e) => e.preventDefault()}
@@ -363,7 +440,7 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
         </span>
         <div className="max-w-[46ch]">
           <p className="font-display text-lg text-foreground">
-            Glissez vos photos et scans ici
+            {about ? 'Joindre une photo de l’acte (facultatif)' : 'Glissez vos photos et scans ici'}
           </p>
           <p className="mt-1 text-sm text-ink-2">
             Ou utilisez les boutons. JPEG, PNG, HEIC, TIFF et PDF, jusqu’à 40 Mo par fichier
@@ -372,7 +449,7 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Button variant="primary" onClick={() => pickRef.current?.click()}>
+          <Button variant={about ? 'secondary' : 'primary'} onClick={() => pickRef.current?.click()}>
             <Upload size={14} />
             Choisir des fichiers
           </Button>
@@ -447,58 +524,94 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
         </Section>
       )}
 
-      <Section title="Ce que vous en savez">
-        <div className="flex flex-col gap-4">
-          <Field
-            label="Votre nom"
-            helper="Pour savoir de qui vient le document."
-            className="sm:max-w-xs"
-          >
-            {(props) => (
-              <Input
-                {...props}
-                value={sender}
-                maxLength={120}
-                disabled={busy}
-                onChange={(e) => setSender(e.target.value)}
-                placeholder="Votre prénom"
-              />
-            )}
-          </Field>
+    </>
+  )
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="depot-note">Message</Label>
-            <textarea
-              id="depot-note"
-              value={note}
-              maxLength={4000}
-              rows={5}
+  const message = (
+    <Section title={about ? 'Votre correction ou complément' : 'Ce que vous en savez'}>
+      <div className="flex flex-col gap-4">
+        <Field
+          label="Votre nom"
+          helper={about ? 'Pour savoir qui a vu l’erreur.' : 'Pour savoir de qui vient le document.'}
+          className="sm:max-w-xs"
+        >
+          {(props) => (
+            <Input
+              {...props}
+              value={sender}
+              maxLength={120}
               disabled={busy}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="De qui, de quand, d'où ça vient, ce que vous arrivez à lire, ce dont vous n'êtes pas sûr. Même approximatif, c'est ce qui permet de classer l'image."
-              className={cn(
-                'w-full rounded-[var(--radius)] border border-border bg-card px-2.5 py-2 text-sm text-foreground',
-                'placeholder:text-ink-3 transition-[border-color] duration-150',
-                'hover:border-[var(--rule-strong)] focus:border-primary focus:outline-none',
-                'disabled:cursor-not-allowed disabled:opacity-55',
-              )}
+              onChange={(e) => setSender(e.target.value)}
+              placeholder="Votre prénom"
             />
-            <p className="text-xs text-ink-3">
-              Facultatif, mais une photo sans contexte est presque inexploitable.
-            </p>
-          </div>
+          )}
+        </Field>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="depot-note">Message</Label>
+          <textarea
+            id="depot-note"
+            value={note}
+            maxLength={4000}
+            ref={noteRef}
+            rows={5}
+            disabled={busy}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={
+              about
+                ? "Ce qui est faux ou manque sur cette fiche, et d'où vous le tenez : un acte, le livret de famille, un souvenir. Une photo de l'acte peut être jointe ci-dessous."
+                : "De qui, de quand, d'où ça vient, ce que vous arrivez à lire, ce dont vous n'êtes pas sûr. Même approximatif, c'est ce qui permet de classer l'image."
+            }
+            className={cn(
+              'w-full rounded-[var(--radius)] border border-border bg-card px-2.5 py-2 text-sm text-foreground',
+              'placeholder:text-ink-3 transition-[border-color] duration-150',
+              'hover:border-[var(--rule-strong)] focus:border-primary focus:outline-none',
+              'disabled:cursor-not-allowed disabled:opacity-55',
+            )}
+          />
+          <p className="text-xs text-ink-3">
+            {about
+              ? 'Envoyez le message seul, ou avec une photo : les deux marchent.'
+              : 'Facultatif, mais une photo sans contexte est presque inexploitable.'}
+          </p>
         </div>
-      </Section>
+      </div>
+    </Section>
+
+  )
+
+  return (
+    <div className="flex flex-col gap-6">
+      {error && <ErrorBanner message={error} />}
+
+      {/* A correction is mostly words, with an act photo at most: the message
+          comes first. A plain deposit is mostly images. */}
+      {about ? (
+        <>
+          <AboutCard about={about} />
+          {message}
+          {attachments}
+        </>
+      ) : (
+        <>
+          {attachments}
+          {message}
+        </>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="primary"
           loading={busy}
-          disabled={files.length === 0}
+          disabled={!canSend}
           onClick={send}
         >
           <Upload size={14} />
-          {files.length <= 1 ? 'Envoyer' : `Envoyer les ${files.length} fichiers`}
+          {files.length === 0
+            ? 'Envoyer le message'
+            : files.length === 1
+              ? 'Envoyer'
+              : `Envoyer les ${files.length} fichiers`}
         </Button>
         {busy && (
           <span className="flex min-w-[180px] flex-1 items-center gap-2">
@@ -521,6 +634,18 @@ function DepotForm({ password, onLocked }: { password: string; onLocked: () => v
 // ---------------------------------------------------------------------------
 
 export function DepotPage() {
+  const { person: personId } = Route.useSearch()
+  const { data: person } = usePerson(personId ?? null)
+  const about: About | null =
+    personId && person
+      ? {
+          id: person.id,
+          label: [person.name ?? person.id, formatLifespan(person.birth_year, person.death_year)]
+            .filter(Boolean)
+            .join(', '),
+          sex: person.sex,
+        }
+      : null
   const [password, setPassword] = useState<string | null>(null)
 
   useEffect(() => {
@@ -535,8 +660,12 @@ export function DepotPage() {
   return (
     <PageContainer>
       <PageHeader
-        title="Dépôt d'images"
-        subtitle="Actes, photos de famille, pages de registre : déposez-les ici plutôt que par mail. Ils arrivent directement dans le dossier des sources."
+        title={personId ? 'Corriger ou compléter une fiche' : "Dépôt d'images"}
+        subtitle={
+          personId
+            ? 'Une erreur, un oubli, un acte à ajouter : écrivez-le ici. Le message arrive directement avec la fiche concernée.'
+            : 'Actes, photos de famille, pages de registre : déposez-les ici plutôt que par mail. Ils arrivent directement dans le dossier des sources.'
+        }
         actions={
           password && (
             <Button
@@ -554,7 +683,7 @@ export function DepotPage() {
         }
       />
       {password ? (
-        <DepotForm password={password} onLocked={() => setPassword(null)} />
+        <DepotForm password={password} onLocked={() => setPassword(null)} about={about} />
       ) : (
         <PasswordGate onUnlock={setPassword} />
       )}

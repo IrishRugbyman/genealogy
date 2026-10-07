@@ -1,7 +1,9 @@
 import { Link, Outlet, createRootRoute, useRouterState } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@/components/ui/Button'
+import { FamilyAccessButton } from '@/components/ui/FamilyAccess'
+import { TextSizeToggle } from '@/components/ui/TextSizeToggle'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +50,7 @@ function DesktopNavItem({ to, label }: { to: string; label: string }) {
       to={to}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative rounded-[var(--radius-sm)] px-2 py-1 text-[13px] transition-colors duration-150',
+        'relative rounded-[var(--radius-sm)] px-2 py-1 text-sm transition-colors duration-150',
         'after:absolute after:inset-x-2 after:-bottom-[13px] after:h-px after:transition-colors after:content-[""]',
         active
           ? 'font-medium text-foreground after:bg-primary'
@@ -88,13 +90,54 @@ function MobileNavItem({
   )
 }
 
+/* Whether the full navigation fits on one line beside the wordmark and the
+   controls. Its width follows the reader's text size, which a CSS breakpoint
+   cannot see (media queries measure in the browser's default rem), so an
+   invisible copy of the nav is measured instead and the header falls back to
+   the drawer whenever the real one would not fit. */
+function useNavFits() {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const probeRef = useRef<HTMLDivElement>(null)
+  const fixedRefs = useRef<(HTMLElement | null)[]>([])
+  const [fits, setFits] = useState(true)
+
+  useLayoutEffect(() => {
+    const row = rowRef.current
+    const probe = probeRef.current
+    if (!row || !probe) return
+    const check = () => {
+      const style = getComputedStyle(row)
+      const gap = parseFloat(style.columnGap) || 0
+      const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+      const fixed = fixedRefs.current.reduce(
+        (w, el) => w + (el ? el.getBoundingClientRect().width : 0),
+        0,
+      )
+      // Wordmark, nav, controls: two gaps between three items.
+      setFits(row.clientWidth >= padding + fixed + probe.scrollWidth + 2 * gap)
+    }
+    const observer = new ResizeObserver(check)
+    observer.observe(row)
+    observer.observe(probe)
+    fixedRefs.current.forEach((el) => el && observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
+  return { rowRef, probeRef, fixedRefs, fits }
+}
+
 function RootLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const nav = useNavFits()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   useEffect(() => {
     setDrawerOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    if (nav.fits) setDrawerOpen(false)
+  }, [nav.fits])
 
   // Escape closes the drawer, and the body is locked so the page behind does
   // not scroll under the overlay.
@@ -124,26 +167,50 @@ function RootLayout() {
       {/* Header height is 56px; it never wraps to a second line, so nav labels
           are condensed rather than allowed to reflow. */}
       <header className="sticky top-0 z-40 border-b border-border bg-[color-mix(in_oklab,var(--paper)_88%,transparent)] backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 sm:px-6">
-          <Wordmark />
+        <div
+          ref={nav.rowRef}
+          className="relative mx-auto flex h-14 max-w-[1600px] items-center gap-4 overflow-hidden px-4 sm:px-6"
+        >
+          <span ref={(el) => { nav.fixedRefs.current[0] = el }} className="shrink-0">
+            <Wordmark />
+          </span>
 
-          <nav aria-label="Navigation principale" className="hidden items-center gap-0.5 lg:flex">
+          {/* Measuring copy: same items, same type, never seen nor focusable. */}
+          <div
+            ref={nav.probeRef}
+            aria-hidden="true"
+            className="invisible pointer-events-none absolute left-0 top-0 flex w-max items-center gap-0.5"
+          >
             {NAV_ITEMS.map((item) => (
               <DesktopNavItem key={item.to} to={item.to} label={item.label} />
             ))}
-          </nav>
+          </div>
 
-          <div className="ml-auto flex items-center gap-1">
+          {nav.fits && (
+            <nav aria-label="Navigation principale" className="flex items-center gap-0.5">
+              {NAV_ITEMS.map((item) => (
+                <DesktopNavItem key={item.to} to={item.to} label={item.label} />
+              ))}
+            </nav>
+          )}
+
+          <div
+            ref={(el) => { nav.fixedRefs.current[1] = el }}
+            className="ml-auto flex shrink-0 items-center gap-1"
+          >
+            <FamilyAccessButton className="hidden sm:inline-flex" />
+            <TextSizeToggle />
             <ThemeToggle />
-            <IconButton
-              size="sm"
-              aria-label="Ouvrir le menu"
-              aria-expanded={drawerOpen}
-              onClick={() => setDrawerOpen(true)}
-              className="lg:hidden"
-            >
-              <Menu size={16} />
-            </IconButton>
+            {!nav.fits && (
+              <IconButton
+                size="sm"
+                aria-label="Ouvrir le menu"
+                aria-expanded={drawerOpen}
+                onClick={() => setDrawerOpen(true)}
+              >
+                <Menu size={16} />
+              </IconButton>
+            )}
           </div>
         </div>
       </header>
@@ -151,7 +218,8 @@ function RootLayout() {
       {/* Mobile drawer */}
       <div
         className={cn(
-          'fixed inset-0 z-50 lg:hidden',
+          'fixed inset-0 z-50',
+          nav.fits && 'hidden',
           drawerOpen ? 'pointer-events-auto' : 'pointer-events-none',
         )}
         aria-hidden={!drawerOpen}
@@ -183,6 +251,9 @@ function RootLayout() {
             >
               <X size={16} />
             </IconButton>
+          </div>
+          <div className="border-b border-border px-5 py-3 sm:hidden">
+            <FamilyAccessButton className="w-full" />
           </div>
           <nav aria-label="Navigation" className="flex flex-col overflow-y-auto">
             {NAV_ITEMS.map((item) => (

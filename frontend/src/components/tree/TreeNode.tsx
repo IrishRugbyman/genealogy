@@ -3,8 +3,15 @@ import { ExternalLink, Loader2, Minus, Plus } from 'lucide-react'
 import { cn, formatLifespan } from '@/lib/utils'
 import type { TreePerson } from '@/lib/tree'
 
-export const NODE_W = 176
-export const NODE_H = 84
+/** Node box at the normal text size, in px. The tree lays nodes out in SVG
+    pixels, which a larger root font-size does not reach, so the box is scaled
+    by the reader's text-size multiplier (`nodeSize`) to keep its text inside. */
+const BASE_W = 196
+const BASE_H = 92
+
+export function nodeSize(scale: number): { w: number; h: number } {
+  return { w: Math.round(BASE_W * scale), h: Math.round(BASE_H * scale) }
+}
 
 /* The left edge carries the sex, as a 2px rule rather than a filled card, so a
    dense tree stays readable and the node's own surface can still show focus. */
@@ -14,6 +21,8 @@ const SEX_EDGE: Record<string, string> = {
 }
 
 interface Props {
+  width: number
+  height: number
   person: TreePerson | undefined
   isLoading: boolean
   isFocus: boolean
@@ -44,7 +53,7 @@ function ExpandButton({
       onClick={onClick}
       title={expanded ? `Masquer les ${label}` : `Voir les ${label}`}
       aria-label={expanded ? `Masquer les ${label}` : `Voir les ${label}`}
-      className="flex items-center gap-0.5 rounded-[var(--radius-sm)] px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-foreground active:translate-y-px"
+      className="flex items-center gap-0.5 rounded-[var(--radius-sm)] px-1 py-0.5 text-[0.8125rem] text-ink-3 transition-colors hover:bg-surface-2 hover:text-foreground active:translate-y-px"
     >
       {expanded ? <Minus size={10} aria-hidden="true" /> : <Plus size={10} aria-hidden="true" />}
       {label}
@@ -53,6 +62,8 @@ function ExpandButton({
 }
 
 export function TreeNode({
+  width,
+  height,
   person,
   isLoading,
   isFocus,
@@ -69,7 +80,7 @@ export function TreeNode({
 
   return (
     <div
-      style={{ width: NODE_W, height: NODE_H, borderLeftColor: edge }}
+      style={{ width, height, borderLeftColor: edge }}
       className={cn(
         'group relative flex cursor-pointer flex-col justify-between rounded-[var(--radius)] border border-l-2 border-border bg-card px-2.5 py-2 text-left shadow-[var(--shadow-sm)]',
         isFocus && 'ring-2 ring-primary ring-offset-2 ring-offset-[var(--paper)]',
@@ -90,7 +101,7 @@ export function TreeNode({
             >
               {person.name ?? 'Inconnu'}
             </Link>
-            <p className="truncate text-[10px] text-ink-3">
+            <p className="truncate text-[0.75rem] text-ink-3">
               <span className="font-mono tabular-nums">
                 {formatLifespan(person.birth_year, person.death_year)}
               </span>

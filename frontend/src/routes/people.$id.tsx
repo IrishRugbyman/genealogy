@@ -5,7 +5,9 @@ import {
   ChevronRight,
   GitBranch,
   GitMerge,
+  Lock,
   MapPin,
+  PenLine,
   Search,
   Shield,
   X,
@@ -18,6 +20,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button, buttonClasses } from '@/components/ui/Button'
 import { Card, Section } from '@/components/ui/Section'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { SignInForm } from '@/components/ui/FamilyAccess'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -29,9 +32,11 @@ import {
   useAncestors,
   useDescendants,
   useFamily,
+  useFamilyAccess,
   usePerson,
   useSosa,
   useSearch,
+  type ChildRef,
   type PersonDetail,
   type DistinctionRef,
   type MilitaryRankRef,
@@ -59,6 +64,7 @@ function PersonPage() {
   useEffect(() => {
     if (!person) return
     document.title = `${person.name ?? id} · Généalogie`
+    if (person.living) return () => { document.title = 'Généalogie' }
     pushRecent({
       id: person.id,
       name: person.name,
@@ -69,7 +75,7 @@ function PersonPage() {
       sex: person.sex,
     })
     return () => { document.title = 'Généalogie' }
-  }, [person?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [person?.id, person?.living]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return (
@@ -108,11 +114,12 @@ function PersonPage() {
           raised card; the rest group with a hairline, so the page has a top
           instead of nine equally-loud boxes. */}
       <div className="mt-8 space-y-8">
-        <EventsSection person={person} />
+        {person.living && <LivingNotice />}
+        <FamilySection person={person} />
+        {!person.living && <EventsSection person={person} />}
         {person.parents?.family_id && (
           <SiblingsSection familyId={person.parents.family_id} selfId={person.id} />
         )}
-        {person.spouses.length > 0 && <SpouseSection spouses={person.spouses} />}
         <AncestorSection id={id} />
         <DescendantSection id={id} />
         {person.military_ranks.length > 0 && <MilitarySection ranks={person.military_ranks} />}
@@ -304,7 +311,11 @@ function PersonHeader({ person }: { person: PersonDetail }) {
             )}
 
             <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
-              <span className="font-mono tabular-nums">{span || 'Dates inconnues'}</span>
+              {person.living ? (
+                <span>Informations réservées à la famille</span>
+              ) : (
+                <span className="font-mono tabular-nums">{span || 'Dates inconnues'}</span>
+              )}
               {birthPlace && (
                 <>
                   <span aria-hidden="true" className="text-ink-3">·</span>
@@ -356,6 +367,16 @@ function PersonHeader({ person }: { person: PersonDetail }) {
               <GitBranch size={13} aria-hidden="true" /> Voir l'arbre
             </Link>
             <RelationFinder personId={person.id} />
+            {/* The one way back from reader to contributor: an error spotted
+                here, or an act that belongs to this person, goes to the depot
+                already tied to this fiche. */}
+            <Link
+              to="/depot"
+              search={{ person: person.id }}
+              className={buttonClasses('secondary', 'sm')}
+            >
+              <PenLine size={13} aria-hidden="true" /> Corriger ou compléter
+            </Link>
           </div>
         </div>
       </Card>
@@ -364,11 +385,42 @@ function PersonHeader({ person }: { person: PersonDetail }) {
 }
 
 // ---------------------------------------------------------------------------
+// A living person, seen by a visitor who is not signed in
+// ---------------------------------------------------------------------------
+
+function LivingNotice() {
+  const { available } = useFamilyAccess()
+  return (
+    <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:gap-8">
+      <div className="flex-1">
+        <h2 className="flex items-center gap-2 font-display text-xl text-foreground">
+          <Lock size={16} aria-hidden="true" className="text-ink-3" />
+          Personne vivante
+        </h2>
+        <p className="mt-2 text-base text-ink-2">
+          Son nom, ses dates et ses lieux ne sont pas publiés : ils sont réservés à la
+          famille. Ses parents et ses ancêtres restent visibles ci-dessous.
+        </p>
+      </div>
+      {available && (
+        <div className="sm:w-80">
+          <SignInForm />
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Timeline
 // ---------------------------------------------------------------------------
 
 function EventsSection({ person }: { person: PersonDetail }) {
-  const [view, setView] = useState<'horizontal' | 'vertical' | 'list'>('horizontal')
+  // The frieze needs width: on a phone its labels collide and it scrolls
+  // sideways, so a narrow screen starts on the vertical view instead.
+  const [view, setView] = useState<'horizontal' | 'vertical' | 'list'>(() =>
+    window.matchMedia('(max-width: 47.99rem)').matches ? 'vertical' : 'horizontal',
+  )
   const timeline = useMemo(() => buildTimeline(person), [person])
   const customEvents = useMemo(
     () => person.events.filter((e) => !VITAL_TYPES.has(e.type ?? '')),
@@ -556,88 +608,178 @@ function SiblingsSection({ familyId, selfId }: { familyId: string; selfId: strin
   )
 }
 
-function SpouseSection({ spouses }: { spouses: SpouseRef[] }) {
+/* Parents, then each union with its children under it: the layout of a GeneWeb
+   page, which is what the person who compiled this tree reads every day. It sits
+   right under the header because "who were their parents, whom did they marry,
+   which children" is the first question asked of any fiche. */
+function FamilySection({ person }: { person: PersonDetail }) {
+  const p = person.parents
+  const hasParents = !!(p?.father_id || p?.mother_id)
+  const unionIds = new Set(person.spouses.map((s) => s.family_id))
+  const otherChildren = person.children.filter((c) => !unionIds.has(c.family_id))
+  if (!hasParents && person.spouses.length === 0 && person.children.length === 0) return null
+
   return (
-    <Section title={spouses.length > 1 ? 'Unions' : 'Union'} count={spouses.length > 1 ? spouses.length : undefined}>
-      <div className="space-y-4">
-        {spouses.map((s, i) => (
-          <div key={s.family_id ?? i} className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              {s.spouse_id ? (
+    <Section title="Famille">
+      <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-[9rem_1fr]">
+        <FamilyRow label="Parents">
+          {hasParents ? (
+            <div className="flex flex-wrap gap-2">
+              {p?.father_id ? (
                 <RelativeLink
-                  id={s.spouse_id}
-                  name={s.spouse_name}
-                  sex={s.spouse_sex}
-                  detail={formatLifespan(s.spouse_birth_year, s.spouse_death_year) || null}
+                  id={p.father_id}
+                  name={p.father_name}
+                  sex="M"
+                  detail={formatLifespan(p.father_birth_year, p.father_death_year) || null}
                 />
               ) : (
-                <span className="text-sm text-ink-2">{s.spouse_name ?? 'Conjoint inconnu'}</span>
+                <span className="self-center text-sm text-ink-3">Père inconnu</span>
               )}
-
-              {s.marriage_year && (
-                <span className="text-sm text-ink-2">
-                  <span className="font-mono tabular-nums">
-                    {QUALIFIER_MARK[s.marriage_qualifier ?? ''] ?? ''}
-                    {formatDate(s.marriage_year, s.marriage_month, s.marriage_day)}
-                  </span>
-                  {s.marriage_locality && (
-                    <>
-                      <span aria-hidden="true" className="mx-1.5 text-ink-3">·</span>
-                      {s.marriage_place_id ? (
-                        <Link
-                          to="/places/$id"
-                          params={{ id: String(s.marriage_place_id) }}
-                          className="underline-offset-2 transition-colors hover:text-foreground hover:underline"
-                        >
-                          {s.marriage_locality}
-                        </Link>
-                      ) : (
-                        s.marriage_locality
-                      )}
-                    </>
-                  )}
-                </span>
-              )}
-
-              {s.divorced && <Badge>Divorcés</Badge>}
-
-              {s.family_id && (
-                <Link
-                  to="/families/$id"
-                  params={{ id: s.family_id }}
-                  className="text-sm text-ink-3 underline-offset-2 transition-colors hover:text-foreground hover:underline"
-                >
-                  Voir la famille
-                </Link>
+              {p?.mother_id ? (
+                <RelativeLink
+                  id={p.mother_id}
+                  name={p.mother_name}
+                  sex="F"
+                  detail={formatLifespan(p.mother_birth_year, p.mother_death_year) || null}
+                />
+              ) : (
+                <span className="self-center text-sm text-ink-3">Mère inconnue</span>
               )}
             </div>
+          ) : (
+            <span className="inline-block pt-1.5 text-sm text-ink-3">Inconnus</span>
+          )}
+        </FamilyRow>
 
-            {(s.marriage_contract_year != null || s.marriage_note || s.divorce_note || s.marriage_sources.length > 0) && (
-              <div className="space-y-1 border-l border-border pl-3 text-xs text-ink-3">
-                {s.divorce_note && <p>Divorce : {s.divorce_note}</p>}
-                {s.marriage_contract_year != null && (
-                  <p>
-                    Contrat de mariage :{' '}
-                    <span className="font-mono tabular-nums">
-                      {QUALIFIER_MARK[s.marriage_contract_qualifier ?? ''] ?? ''}
-                      {formatDate(s.marriage_contract_year, s.marriage_contract_month, s.marriage_contract_day)}
-                    </span>
-                    {s.marriage_contract_locality && ` · ${s.marriage_contract_locality}`}
-                  </p>
-                )}
-                {s.marriage_note && <p className="whitespace-pre-wrap">{s.marriage_note}</p>}
-                {s.marriage_sources.map((c, j) => (
-                  <p key={j}>
-                    <span className="text-ink-3/70">Source </span>
-                    {c}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
+        {person.spouses.map((s, i) => (
+          <FamilyRow
+            key={s.family_id ?? i}
+            label={person.spouses.length > 1 ? `Union ${i + 1}` : 'Union'}
+          >
+            <UnionDetail union={s} />
+            <ChildList kids={person.children.filter((c) => c.family_id === s.family_id)} />
+          </FamilyRow>
+        ))}
+
+        {otherChildren.length > 0 && (
+          <FamilyRow label="Enfants">
+            <ChildList kids={otherChildren} bare />
+          </FamilyRow>
+        )}
+      </dl>
+    </Section>
+  )
+}
+
+function FamilyRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className="pt-1.5 text-sm font-medium text-ink-2">{label}</dt>
+      <dd className="min-w-0 space-y-2">{children}</dd>
+    </>
+  )
+}
+
+function ChildList({ kids, bare }: { kids: ChildRef[]; bare?: boolean }) {
+  if (kids.length === 0) return null
+  return (
+    <div className={cn('space-y-1.5', !bare && 'border-l border-border pl-3')}>
+      {!bare && (
+        <p className="text-sm text-ink-3">
+          {kids.length === 1 ? '1 enfant' : `${kids.length} enfants`}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {kids.map((c) => (
+          <RelativeLink
+            key={c.child_id}
+            id={c.child_id}
+            name={c.name}
+            sex={c.sex}
+            detail={formatLifespan(c.child_birth_year, c.child_death_year) || null}
+          />
         ))}
       </div>
-    </Section>
+    </div>
+  )
+}
+
+function UnionDetail({ union: s }: { union: SpouseRef }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {s.spouse_id ? (
+          <RelativeLink
+            id={s.spouse_id}
+            name={s.spouse_name}
+            sex={s.spouse_sex}
+            detail={formatLifespan(s.spouse_birth_year, s.spouse_death_year) || null}
+          />
+        ) : (
+          <span className="text-sm text-ink-2">{s.spouse_name ?? 'Conjoint inconnu'}</span>
+        )}
+
+        {s.marriage_year && (
+          <span className="text-sm text-ink-2">
+            <span className="font-mono tabular-nums">
+              {QUALIFIER_MARK[s.marriage_qualifier ?? ''] ?? ''}
+              {formatDate(s.marriage_year, s.marriage_month, s.marriage_day)}
+            </span>
+            {s.marriage_locality && (
+              <>
+                <span aria-hidden="true" className="mx-1.5 text-ink-3">·</span>
+                {s.marriage_place_id ? (
+                  <Link
+                    to="/places/$id"
+                    params={{ id: String(s.marriage_place_id) }}
+                    className="underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                  >
+                    {s.marriage_locality}
+                  </Link>
+                ) : (
+                  s.marriage_locality
+                )}
+              </>
+            )}
+          </span>
+        )}
+
+        {s.divorced && <Badge>Divorcés</Badge>}
+
+        {s.family_id && (
+          <Link
+            to="/families/$id"
+            params={{ id: s.family_id }}
+            className="text-sm text-ink-3 underline-offset-2 transition-colors hover:text-foreground hover:underline"
+          >
+            Voir la famille
+          </Link>
+        )}
+      </div>
+
+      {(s.marriage_contract_year != null || s.marriage_note || s.divorce_note || s.marriage_sources.length > 0) && (
+        <div className="space-y-1 border-l border-border pl-3 text-xs text-ink-3">
+          {s.divorce_note && <p>Divorce : {s.divorce_note}</p>}
+          {s.marriage_contract_year != null && (
+            <p>
+              Contrat de mariage :{' '}
+              <span className="font-mono tabular-nums">
+                {QUALIFIER_MARK[s.marriage_contract_qualifier ?? ''] ?? ''}
+                {formatDate(s.marriage_contract_year, s.marriage_contract_month, s.marriage_contract_day)}
+              </span>
+              {s.marriage_contract_locality && ` · ${s.marriage_contract_locality}`}
+            </p>
+          )}
+          {s.marriage_note && <p className="whitespace-pre-wrap">{s.marriage_note}</p>}
+          {s.marriage_sources.map((c, j) => (
+            <p key={j}>
+              <span className="text-ink-3/70">Source </span>
+              {c}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -859,7 +1001,7 @@ function LineageSection({
 }
 
 function AncestorSection({ id }: { id: string }) {
-  const [depth, setDepth] = useState(4)
+  const [depth, setDepth] = useState(3)
   const { data, isFetching } = useAncestors(id, depth)
   return (
     <LineageSection

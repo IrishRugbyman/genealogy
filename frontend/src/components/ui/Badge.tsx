@@ -78,7 +78,7 @@ export function Badge({ children, tone = 'neutral', mono, className, title }: Ba
       }
       className={cn(
         'inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border px-1.5 py-px',
-        'text-[11px] font-medium leading-5',
+        'text-[0.8125rem] font-medium leading-5',
         mono && 'font-mono tabular-nums',
         !hue && 'border-border bg-surface-2 text-ink-2',
         hue && !emphatic && 'text-foreground',

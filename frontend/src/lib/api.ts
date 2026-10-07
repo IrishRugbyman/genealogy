@@ -1,11 +1,32 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { displayName, isNamePlaceholder } from './utils'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(BASE_URL + path)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json() as Promise<T>
+  return tidyNames(await res.json()) as T
+}
+
+/** Name placeholders ("n", "N", "?") rendered once, here, for every response:
+    a person's name reaches the page through some forty fields (`name`,
+    `spouse_name`, `husband_name`...), and fixing it at each of the ninety
+    places that print one would miss the ninety-first. */
+function tidyNames(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(tidyNames)
+  if (value === null || typeof value !== 'object') return value
+  const out: Record<string, unknown> = {}
+  for (const [key, v] of Object.entries(value)) {
+    if (typeof v === 'string' && (key === 'name' || key.endsWith('_name'))) {
+      out[key] = key === 'given_name' ? (isNamePlaceholder(v) ? '?' : v) : displayName(v)
+    } else if (typeof v === 'string' && key === 'surname') {
+      out[key] = isNamePlaceholder(v) ? '?' : v
+    } else {
+      out[key] = tidyNames(v)
+    }
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +70,7 @@ export interface SosaRoot {
   id: string
   given_name: string | null
   surname: string | null
+  living?: boolean
 }
 
 /** Deployment config: the Sosa root (null when none is set) and the labels of
@@ -67,8 +89,12 @@ export interface PedigreeGeneration {
 export interface ParentRef {
   father_id: string | null
   father_name: string | null
+  father_birth_year: number | null
+  father_death_year: number | null
   mother_id: string | null
   mother_name: string | null
+  mother_birth_year: number | null
+  mother_death_year: number | null
   family_id: string | null
 }
 
@@ -77,6 +103,8 @@ export interface SpouseRef {
   spouse_id: string | null
   spouse_name: string | null
   spouse_sex: string | null
+  /** The spouse is hidden as living: name blank, marriage date and place blank. */
+  spouse_living?: boolean
   spouse_birth_year: number | null
   spouse_death_year: number | null
   divorced: boolean | null
@@ -123,6 +151,8 @@ export interface ChildRef {
   child_birth_country: string | null
   family_id: string | null
   other_parent_id: string | null
+  /** Hidden as living: name and dates blank. */
+  living?: boolean
 }
 
 export interface EventRecord {
@@ -189,6 +219,9 @@ export interface PersonDetail {
   professions: ProfessionRef[]
   distinctions: DistinctionRef[]
   military_ranks: MilitaryRankRef[]
+  /** Set by the API when this person may be alive and the viewer is not signed
+      in: every field but the id, the sex and the structure is then blank. */
+  living?: boolean
 }
 
 export interface TreeNode {
@@ -203,6 +236,7 @@ export interface TreeNode {
   birth_place: string | null
   birth_country_iso: string | null
   sosa: number | null
+  living?: boolean
 }
 
 export interface CommonAncestor extends TreeNode {
@@ -989,4 +1023,90 @@ export function useOnThisDay(month?: number, day?: number) {
     queryFn: () => fetchJson(`/api/onthisday${params}`),
     staleTime: 60 * 60_000,
   })
+}
+
+// ---------------------------------------------------------------------------
+// Family access
+//
+// One shared family password unlocks the living, through an HttpOnly cookie the
+// API sets (see api/app/privacy.py). Without it they come back as
+// "Personne vivante" with every date and place blanked.
+// ---------------------------------------------------------------------------
+
+/** Where the depot page remembers its password (see routes/depot.tsx). */
+export const DEPOT_PASSWORD_KEY = 'genealogy.depot.password'
+
+export interface SessionState {
+  /** This browser is signed in and sees the living. */
+  family: boolean
+  /** A family password is configured at all. */
+  available: boolean
+}
+
+export function useSession() {
+  return useQuery<SessionState>({
+    queryKey: ['session'],
+    queryFn: () => fetchJson('/api/session'),
+    staleTime: Infinity,
+  })
+}
+
+async function sendSession(method: 'POST' | 'DELETE', password?: string): Promise<SessionState> {
+  const res = await fetch(BASE_URL + '/api/session', {
+    method,
+    headers: password === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: password === undefined ? undefined : JSON.stringify({ password }),
+  })
+  if (res.status === 401) throw new Error('Mot de passe incorrect.')
+  if (res.status === 429) throw new Error('Trop d\'essais. Réessayez dans une heure.')
+  if (res.status === 503) throw new Error('L\'accès famille n\'est pas ouvert sur ce site.')
+  if (!res.ok) throw new Error(`Le serveur n'a pas répondu (${res.status}).`)
+  return res.json() as Promise<SessionState>
+}
+
+/** Also unlock the depot when the family password is the depot's too, which is
+    the default: one password to remember, typed once. Silent when they differ. */
+async function unlockDepotWith(password: string): Promise<void> {
+  const form = new FormData()
+  form.append('password', password)
+  try {
+    const res = await fetch(BASE_URL + '/api/uploads/auth', { method: 'POST', body: form })
+    if (res.ok) localStorage.setItem(DEPOT_PASSWORD_KEY, password)
+  } catch {
+    // The depot is a convenience here; signing in already succeeded.
+  }
+}
+
+/** Sign in or out. Every cached answer was shaped for the previous viewer, so
+    both reset the whole query cache and let the visible pages refetch. */
+export function useFamilyAccess() {
+  const queryClient = useQueryClient()
+  const session = useSession()
+
+  const signIn = useMutation({
+    mutationFn: async ({ password, depot = true }: { password: string; depot?: boolean }) => {
+      const state = await sendSession('POST', password)
+      if (depot) await unlockDepotWith(password)
+      return state
+    },
+    onSuccess: (state) => {
+      queryClient.setQueryData(['session'], state)
+      void queryClient.resetQueries({ predicate: (q) => q.queryKey[0] !== 'session' })
+    },
+  })
+
+  const signOut = useMutation({
+    mutationFn: () => sendSession('DELETE'),
+    onSuccess: (state) => {
+      queryClient.setQueryData(['session'], state)
+      void queryClient.resetQueries({ predicate: (q) => q.queryKey[0] !== 'session' })
+    },
+  })
+
+  return {
+    family: session.data?.family ?? false,
+    available: session.data?.available ?? false,
+    signIn,
+    signOut,
+  }
 }

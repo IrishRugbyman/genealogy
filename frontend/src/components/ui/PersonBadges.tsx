@@ -15,7 +15,7 @@ interface PersonBadgesProps {
 export function PersonBadges({ sosa, branch, isDirectLine }: PersonBadgesProps) {
   const root = useTree().data?.sosa_root
   const branchLabel = useBranchLabels()
-  const of = root ? ` de ${personName(root.given_name, root.surname)}` : ''
+  const of = root && !root.living ? ` de ${personName(root.given_name, root.surname)}` : ''
   return (
     <>
       {/* Labelled rather than a bare figure: "4" on its own says nothing, and

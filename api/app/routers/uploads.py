@@ -39,6 +39,11 @@ MAX_BATCH_BYTES = 250 * 1024 * 1024
 CHUNK = 1024 * 1024
 MAX_SENDER = 120
 MAX_NOTE = 4000
+MAX_PERSON_LABEL = 160
+
+# What a correction is about: an individual's GEDCOM id, as the person page
+# sends it. Only the shape is checked - this route never reads the database.
+PERSON_ID = re.compile(r"I\d{1,7}")
 
 # One running log across all batches. `meta.json` is the record of an envelope;
 # this is the thing a human actually reads, because what the sender wrote is the
@@ -111,12 +116,19 @@ def _append_journal(depot: Path, meta: dict) -> None:
     lines = [
         f"\n## {meta['received_at'][:16].replace('T', ' ')} UTC - `{meta['batch']}`\n",
         f"**De :** {meta['sender'] or 'non précisé'}\n",
-        "**Fichiers :**\n",
     ]
-    lines += [
-        f"- `{f['stored_as']}` ({f['bytes'] // 1024} ko, envoyé sous « {f['original_name']} »)\n"
-        for f in meta["files"]
-    ]
+    if meta["about"]:
+        about = meta["about"]
+        label = f"{about['label']} " if about["label"] else ""
+        lines.append(f"**Au sujet de :** {label}(`{about['id']}`)\n")
+    if meta["files"]:
+        lines.append("**Fichiers :**\n")
+        lines += [
+            f"- `{f['stored_as']}` ({f['bytes'] // 1024} ko, envoyé sous « {f['original_name']} »)\n"
+            for f in meta["files"]
+        ]
+    else:
+        lines.append("**Fichiers :** aucun, message seul\n")
     if meta["note"]:
         lines.append("\n" + "\n".join(f"> {line}" for line in meta["note"].splitlines()) + "\n")
     lines.append("\n- [ ] trié : renommé à la règle et rangé avec sa transcription\n")
@@ -143,9 +155,11 @@ def check_password(request: Request, password: str = Form(...)):
 async def create_upload(
     request: Request,
     password: str = Form(...),
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] | None = File(None),
     sender: str = Form(""),
     note: str = Form(""),
+    person_id: str = Form(""),
+    person_label: str = Form(""),
 ):
     """
     Accept a batch of act scans / family photos into `$GENEALOGY_DEPOT_DIR`.
@@ -153,11 +167,19 @@ async def create_upload(
     Each batch gets its own timestamped directory holding the files plus a
     `meta.json` recording who sent them, what they said about them, and the
     original filenames (which often carry the only clue about the source).
+
+    A batch may also be a message alone, with no file: a correction sent from a
+    person's page ("this date is wrong"). `person_id` / `person_label` then say
+    who it is about; they are recorded as given, for the human doing the triage.
     """
     depot = _check_password(password)
 
-    if not files:
-        raise HTTPException(status_code=400, detail="Aucun fichier")
+    files = files or []
+    person_id = person_id.strip()
+    if person_id and not PERSON_ID.fullmatch(person_id):
+        raise HTTPException(status_code=400, detail="Identifiant de personne invalide")
+    if not files and not note.strip():
+        raise HTTPException(status_code=400, detail="Ni fichier ni message : rien à envoyer")
     if len(files) > MAX_FILES:
         raise HTTPException(status_code=400, detail=f"{MAX_FILES} fichiers au maximum par envoi")
 
@@ -222,6 +244,11 @@ async def create_upload(
             "received_at": stamp.isoformat(),
             "sender": sender.strip()[:MAX_SENDER] or None,
             "note": note.strip()[:MAX_NOTE] or None,
+            "about": (
+                {"id": person_id, "label": person_label.strip()[:MAX_PERSON_LABEL] or None}
+                if person_id
+                else None
+            ),
             "remote_addr": client_ip(request),
             "files": written,
             "total_bytes": total,

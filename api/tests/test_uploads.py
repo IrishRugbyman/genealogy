@@ -224,3 +224,60 @@ def test_unconfigured_deployment_refuses(client, monkeypatch, tmp_path, unset):
         monkeypatch.setattr(uploads, "PASSWORD", "")
     r = client.post("/api/uploads/auth", data={"password": PASSWORD})
     assert r.status_code == 503
+
+
+def test_a_message_alone_is_a_valid_batch(client, depot):
+    """A correction from a person's page may carry no file at all."""
+    r = client.post(
+        "/api/uploads",
+        data={
+            "password": PASSWORD,
+            "sender": "Papa",
+            "note": "Le mariage est en 1898, pas en 1899.",
+            "person_id": "I42",
+            "person_label": "Prénom NOM (1870-1940)",
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["files"] == 0
+
+    (batch,) = _batches(depot)
+    assert sorted(p.name for p in batch.iterdir()) == ["meta.json"]
+    meta = json.loads((batch / "meta.json").read_text(encoding="utf-8"))
+    assert meta["about"] == {"id": "I42", "label": "Prénom NOM (1870-1940)"}
+    assert meta["files"] == []
+
+    journal = (depot / "JOURNAL.md").read_text(encoding="utf-8")
+    assert "**Au sujet de :** Prénom NOM (1870-1940) (`I42`)" in journal
+    assert "aucun, message seul" in journal
+    assert "> Le mariage est en 1898, pas en 1899." in journal
+
+
+def test_files_can_also_name_the_person(client, depot):
+    r = client.post(
+        "/api/uploads",
+        data={"password": PASSWORD, "person_id": "I7"},
+        files=[("files", ("acte.jpg", JPEG, "image/jpeg"))],
+    )
+    assert r.status_code == 200, r.text
+    (batch,) = _batches(depot)
+    meta = json.loads((batch / "meta.json").read_text(encoding="utf-8"))
+    assert meta["about"] == {"id": "I7", "label": None}
+
+
+def test_nothing_to_send_is_refused(client, depot):
+    """No file and no message: nothing would be worth triaging."""
+    for note in ("", "   \n "):
+        r = client.post("/api/uploads", data={"password": PASSWORD, "note": note})
+        assert r.status_code == 400
+    assert _batches(depot) == []
+
+
+def test_a_malformed_person_id_is_refused(client, depot):
+    for bad in ("F12", "I", "I12; rm", "../I1", "I12345678"):
+        r = client.post(
+            "/api/uploads",
+            data={"password": PASSWORD, "note": "x", "person_id": bad},
+        )
+        assert r.status_code == 400, bad
+    assert _batches(depot) == []

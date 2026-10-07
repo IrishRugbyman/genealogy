@@ -44,7 +44,7 @@ export function SexMark({
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full border font-medium text-foreground',
         !hue && 'border-border bg-surface-2 text-ink-3',
-        size === 'sm' ? 'h-5 w-5 text-[10px]' : 'h-7 w-7 text-xs',
+        size === 'sm' ? 'h-5 w-5 text-[0.75rem]' : 'h-7 w-7 text-xs',
         className,
       )}
     >

@@ -36,8 +36,12 @@ class ParentRef(BaseModel):
 
     father_id: str | None = None
     father_name: str | None = None
+    father_birth_year: int | None = None
+    father_death_year: int | None = None
     mother_id: str | None = None
     mother_name: str | None = None
+    mother_birth_year: int | None = None
+    mother_death_year: int | None = None
     family_id: str | None = None
 
 
