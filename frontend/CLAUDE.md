@@ -86,7 +86,7 @@ edit it by hand**; add a file under `src/routes/` and let it regenerate.
 | `places.$id.tsx` | locality page (own events + commune + sibling localities) |
 | `communes.$insee.tsx` | commune page (events aggregated across all its localities) |
 | `map.tsx` | choropleth map with granularity selector |
-| `tree.$id.tsx` | interactive hourglass tree (d3-hierarchy + SVG) |
+| `tree.$id.tsx` | interactive hourglass tree (d3-hierarchy + SVG): opens 3 generations up on a desktop, 2 on a phone, from **one** request (`GET /api/people/{id}/tree?up=&down=`); expanding a box fetches what it reveals in one batch (`GET /api/people?ids=`). Fits itself to the screen but never below 0.85 scale, so names stay readable; spouses are named inside the focus and descendant boxes |
 | `relation.$id1.$id2.tsx` | relationship path between two people, via common ancestor |
 | `stats.tsx` / `gaps.tsx` | statistics dashboard / data-coverage gaps |
 | `professions.*` / `distinctions.*` / `military-ranks.*` | catalog browse + detail |

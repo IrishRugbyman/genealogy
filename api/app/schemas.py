@@ -305,6 +305,28 @@ class TreeNode(BaseModel):
     sosa: int | None = None
 
 
+class TreeSpouse(BaseModel):
+    """A spouse as the tree shows one: inside the box, under the name."""
+
+    id: str | None = None
+    name: str | None = None
+
+
+class TreePerson(BaseModel):
+    """One box of the interactive tree, with the links needed to draw its neighbours."""
+
+    id: str
+    name: str | None = None
+    sex: str | None = None
+    birth_year: int | None = None
+    death_year: int | None = None
+    birth_locality: str | None = None
+    father_id: str | None = None
+    mother_id: str | None = None
+    child_ids: list[str] = []
+    spouses: list[TreeSpouse] = []
+
+
 class CommonAncestor(BaseModel):
     """Shared ancestor with distances from both query subjects."""
 

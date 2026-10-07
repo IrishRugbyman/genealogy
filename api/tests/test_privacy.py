@@ -232,6 +232,8 @@ def test_no_endpoint_shows_a_living_person(client, living, subjects):
             f"/api/people/{s['id']}",
             f"/api/people/{s['id']}/ancestors?depth=2",
             f"/api/people/{s['id']}/descendants?depth=2",
+            f"/api/people/{s['id']}/tree?up=2&down=2",
+            f"/api/people?ids={s['id']},{s['father_id'] or s['id']},{s['mother_id'] or s['id']}",
             f"/api/places/{s['birth_place_id']}",
             f"/api/families/{s['parents_family']}",
             f"/api/search?name={s['name'].split()[-1]}&limit=200",
@@ -312,3 +314,11 @@ def test_sign_out_clears_the_cookie(client):
     assert r.status_code == 200
     assert privacy.COOKIE_NAME in r.headers.get("set-cookie", "")
     assert "Max-Age=0" in r.headers["set-cookie"] or "expires=" in r.headers["set-cookie"].lower()
+
+
+def test_the_tree_still_climbs_through_a_hidden_person(client, subjects):
+    """Links survive masking: the root of the tree is usually alive."""
+    s = subjects[0]
+    body = client.get(f"/api/people?ids={s['id']}").json()[0]
+    assert body["living"] is True and body["name"] == privacy.LIVING_LABEL
+    assert (body["father_id"], body["mother_id"]) == (s["father_id"], s["mother_id"])

@@ -1,18 +1,7 @@
 import { hierarchy } from 'd3-hierarchy'
-import type { PersonDetail } from './api'
+import type { TreePerson } from './api'
 
-export interface TreePerson {
-  id: string
-  name: string | null
-  sex: string | null
-  birth_year: number | null
-  death_year: number | null
-  birth_locality: string | null
-  // structural
-  father_id: string | null
-  mother_id: string | null
-  child_ids: string[]
-}
+export type { TreePerson }
 
 export interface TreeState {
   focusId: string
@@ -20,27 +9,50 @@ export interface TreeState {
   expandedDown: Set<string>
 }
 
-/** Convert a PersonDetail API response into the lean TreePerson shape. */
-export function toTreePerson(p: PersonDetail): TreePerson {
-  return {
-    id: p.id,
-    name: p.name,
-    sex: p.sex,
-    birth_year: p.birth_year,
-    death_year: p.death_year,
-    birth_locality: p.birth_place?.locality ?? null,
-    father_id: p.parents?.father_id ?? null,
-    mother_id: p.parents?.mother_id ?? null,
-    child_ids: p.children.map((c) => c.child_id),
-  }
+/** Fold fetched records into the cache, newest wins. */
+export function mergePeople(
+  cache: Map<string, TreePerson>,
+  people: TreePerson[],
+): Map<string, TreePerson> {
+  const next = new Map(cache)
+  for (const p of people) next.set(p.id, p)
+  return next
 }
 
-export function initialState(focusId: string): TreeState {
-  return {
-    focusId,
-    expandedUp: new Set([focusId]),
-    expandedDown: new Set([focusId]),
+/** The tree opened `up` generations above `focusId` and `down` below: every
+    person nearer than that is expanded, so the farthest row shows and offers
+    its own "+ parents" / "+ enfants". */
+export function stateForDepth(
+  focusId: string,
+  up: number,
+  down: number,
+  cache: Map<string, TreePerson>,
+): TreeState {
+  const expandedUp = new Set<string>()
+  const expandedDown = new Set<string>()
+  let row = [focusId]
+  for (let d = 0; d < up && row.length; d++) {
+    const next: string[] = []
+    for (const id of row) {
+      if (expandedUp.has(id)) continue
+      expandedUp.add(id)
+      const p = cache.get(id)
+      if (p?.father_id) next.push(p.father_id)
+      if (p?.mother_id) next.push(p.mother_id)
+    }
+    row = next
   }
+  row = [focusId]
+  for (let d = 0; d < down && row.length; d++) {
+    const next: string[] = []
+    for (const id of row) {
+      if (expandedDown.has(id)) continue
+      expandedDown.add(id)
+      next.push(...(cache.get(id)?.child_ids ?? []))
+    }
+    row = next
+  }
+  return { focusId, expandedUp, expandedDown }
 }
 
 // ---------------------------------------------------------------------------

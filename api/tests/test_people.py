@@ -120,3 +120,77 @@ def test_person_parents_carry_their_years(client):
     parents = client.get(f"/api/people/{row['child_id']}").json()["parents"]
     assert (parents["father_birth_year"], parents["father_death_year"]) == (row["fb"], row["fd"])
     assert (parents["mother_birth_year"], parents["mother_death_year"]) == (row["mb"], row["md"])
+
+
+def _db_cursor():
+    import os
+
+    import psycopg2
+    import psycopg2.extras
+
+    conn = psycopg2.connect(os.environ.get("GENEALOGY_DSN", "dbname=genealogy"))
+    return conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+
+def test_tree_neighbourhood_holds_two_generations_up_and_one_down(client):
+    """The tree opens on one request: it must already hold every box it draws."""
+    conn, cur = _db_cursor()
+    # A dead person with four known grandparents and at least one child.
+    cur.execute(
+        """
+        SELECT pc.child_id AS id
+        FROM parent_child pc
+        JOIN parent_child pf ON pf.child_id = pc.father_id
+        JOIN parent_child pm ON pm.child_id = pc.mother_id
+        JOIN individuals i ON i.id = pc.child_id
+        WHERE i.death_year IS NOT NULL AND i.birth_year < 1850
+          AND pf.father_id IS NOT NULL AND pf.mother_id IS NOT NULL
+          AND pm.father_id IS NOT NULL AND pm.mother_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM parent_child k WHERE pc.child_id IN (k.father_id, k.mother_id))
+        ORDER BY pc.child_id LIMIT 1
+        """
+    )
+    person = cur.fetchone()["id"]
+    cur.execute(
+        """
+        SELECT pc.father_id, pc.mother_id, pf.father_id AS ff, pf.mother_id AS fm,
+               pm.father_id AS mf, pm.mother_id AS mm
+        FROM parent_child pc
+        JOIN parent_child pf ON pf.child_id = pc.father_id
+        JOIN parent_child pm ON pm.child_id = pc.mother_id
+        WHERE pc.child_id = %s
+        """,
+        [person],
+    )
+    expected_up = {v for row in cur.fetchall() for v in row.values()}
+    cur.execute("SELECT child_id FROM parent_child WHERE %s IN (father_id, mother_id)", [person])
+    expected_children = {r["child_id"] for r in cur.fetchall()}
+    conn.close()
+
+    r = client.get(f"/api/people/{person}/tree", params={"up": 2, "down": 1})
+    assert r.status_code == 200
+    by_id = {p["id"]: p for p in r.json()}
+    assert {person} | expected_up | expected_children <= set(by_id)
+    assert set(by_id[person]["child_ids"]) == expected_children
+
+
+def test_tree_batch_matches_the_parent_child_links(client, sample_family_id):
+    conn, cur = _db_cursor()
+    cur.execute(
+        "SELECT child_id, father_id, mother_id FROM parent_child WHERE family_id = %s",
+        [sample_family_id],
+    )
+    rows = cur.fetchall()
+    conn.close()
+    ids = ",".join(r["child_id"] for r in rows) + ",I99999999"
+    got = {p["id"]: p for p in client.get("/api/people", params={"ids": ids}).json()}
+    assert "I99999999" not in got  # an unknown id is just absent
+    for row in rows:
+        p = got[row["child_id"]]
+        if not p.get("living"):
+            assert (p["father_id"], p["mother_id"]) == (row["father_id"], row["mother_id"])
+
+
+def test_tree_batch_is_bounded(client):
+    ids = ",".join(f"I{n}" for n in range(301))
+    assert client.get("/api/people", params={"ids": ids}).status_code == 400

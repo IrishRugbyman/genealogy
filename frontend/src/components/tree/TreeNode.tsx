@@ -6,8 +6,8 @@ import type { TreePerson } from '@/lib/tree'
 /** Node box at the normal text size, in px. The tree lays nodes out in SVG
     pixels, which a larger root font-size does not reach, so the box is scaled
     by the reader's text-size multiplier (`nodeSize`) to keep its text inside. */
-const BASE_W = 196
-const BASE_H = 92
+const BASE_W = 208
+const BASE_H = 112
 
 export function nodeSize(scale: number): { w: number; h: number } {
   return { w: Math.round(BASE_W * scale), h: Math.round(BASE_H * scale) }
@@ -26,6 +26,9 @@ interface Props {
   person: TreePerson | undefined
   isLoading: boolean
   isFocus: boolean
+  /** Name the spouse(s) in the box: for the focus and descendants. An
+      ancestor's spouse is already the other parent drawn beside them. */
+  showSpouses: boolean
   // ancestor expand controls
   canExpandUp: boolean
   isExpandedUp: boolean
@@ -67,6 +70,7 @@ export function TreeNode({
   person,
   isLoading,
   isFocus,
+  showSpouses,
   canExpandUp,
   isExpandedUp,
   onExpandUp,
@@ -97,23 +101,35 @@ export function TreeNode({
             <Link
               to="/tree/$id"
               params={{ id: person.id }}
-              className="block truncate text-xs font-medium leading-snug text-foreground hover:text-primary"
+              className="block truncate pr-4 text-sm font-medium leading-snug text-foreground hover:text-primary"
             >
               {person.name ?? 'Inconnu'}
             </Link>
-            <p className="truncate text-[0.75rem] text-ink-3">
+            <p className="truncate text-xs text-ink-3">
               <span className="font-mono tabular-nums">
                 {formatLifespan(person.birth_year, person.death_year)}
               </span>
               {person.birth_locality && <span className="ml-1">· {person.birth_locality}</span>}
             </p>
+            {showSpouses && person.spouses.length > 0 && (
+              <p
+                className="truncate text-xs text-ink-2"
+                title={person.spouses.map((sp) => sp.name ?? 'Conjoint inconnu').join(', ')}
+              >
+                <span aria-label="marié à" className="text-ink-3">∞ </span>
+                {person.spouses[0].name ?? 'Conjoint inconnu'}
+                {person.spouses.length > 1 && (
+                  <span className="text-ink-3"> +{person.spouses.length - 1}</span>
+                )}
+              </p>
+            )}
           </div>
 
           <Link
             to="/people/$id"
             params={{ id: person.id }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-1.5 top-1.5 rounded-[var(--radius-sm)] p-0.5 text-ink-3 opacity-0 transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
+            className="absolute right-1.5 top-1.5 rounded-[var(--radius-sm)] p-0.5 text-ink-3 opacity-60 transition-opacity hover:text-primary hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
             title="Voir la fiche"
             aria-label={`Voir la fiche de ${person.name ?? person.id}`}
           >

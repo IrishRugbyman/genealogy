@@ -22,7 +22,9 @@ app/
   schemas.py   # Pydantic v2 models mirroring what the queries return
   routers/
     search.py         # GET /api/search - name, surname, place, year range, sex, pagination
-    people.py         # /api/people/{id}, /ancestors, /descendants, /sosa, /common-ancestors
+    people.py         # /api/people/{id}, /ancestors, /descendants, /sosa, /common-ancestors,
+                      # /api/people/{id}/tree (the tree's opening neighbourhood) and
+                      # /api/people?ids= (lean tree records, batched)
     families.py       # /api/families, /api/families/count, /api/families/{id}
     places.py         # /api/places/{id} (locality), /api/communes/{insee} (commune)
     stats.py          # /api/stats (1h cache), /api/tree (root + branch labels),

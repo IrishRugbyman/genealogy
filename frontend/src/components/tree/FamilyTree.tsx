@@ -19,15 +19,21 @@ import {
 
 const GAP_X = 24
 const GAP_Y = 48
+/* Fitting the tree to the screen never shrinks it below this: past it the names
+   stop being readable, and a reader would rather pan than squint. */
+const MIN_FIT_SCALE = 0.85
+const FIT_PADDING = 32
 
 interface Props {
   state: TreeState
   cache: Map<string, TreePerson>
   loadingIds: Set<string>
   onStateChange: (s: TreeState) => void
+  /** Changes when the tree should be re-framed to fit the screen. */
+  fitToken: number
 }
 
-export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
+export function FamilyTree({ state, cache, loadingIds, onStateChange, fitToken }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<SVGGElement>(null)
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null)
@@ -49,11 +55,30 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
     zoomRef.current = z
   }, [])
 
-  const recenter = useCallback(() => {
+  // The drawn extent, kept from the last render, so framing can read it.
+  const boundsRef = useRef({ minX: 0, maxX: 0, minY: 0, maxY: 0 })
+
+  /* Frame the whole tree when it fits at a readable scale. When it does not,
+     keep the readable scale and centre on the focus person along the axis that
+     overflows: the reader starts from the person they asked for and pans. */
+  const fit = useCallback(() => {
     if (!svgRef.current || !zoomRef.current) return
     const { width, height } = svgRef.current.getBoundingClientRect()
-    zoomRef.current.transform(select(svgRef.current), zoomIdentity.translate(width / 2, height / 2))
+    const b = boundsRef.current
+    const w = b.maxX - b.minX + 2 * FIT_PADDING
+    const h = b.maxY - b.minY + 2 * FIT_PADDING
+    const k = Math.max(MIN_FIT_SCALE, Math.min(1, width / w, height / h))
+    const cx = w * k <= width ? (b.minX + b.maxX) / 2 : 0
+    const cy = h * k <= height ? (b.minY + b.maxY) / 2 : 0
+    zoomRef.current.transform(
+      select(svgRef.current),
+      zoomIdentity.translate(width / 2 - cx * k, height / 2 - cy * k).scale(k),
+    )
   }, [])
+
+  useEffect(() => {
+    fit()
+  }, [fitToken, fit])
 
   const zoomBy = useCallback((factor: number) => {
     if (!svgRef.current || !zoomRef.current) return
@@ -64,7 +89,11 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
   const { anc, desc } = buildHierarchies(state, cache)
 
   const { w: NODE_W, h: NODE_H } = nodeSize(textScale)
-  const treeLayout = d3tree<{ id: string }>().nodeSize([NODE_W + GAP_X, NODE_H + GAP_Y])
+  // d3's default doubles the gap between cousins; in a pedigree every row is
+  // cousins, so that only spreads the tree past the screen for nothing.
+  const treeLayout = d3tree<{ id: string }>()
+    .nodeSize([NODE_W + GAP_X, NODE_H + GAP_Y])
+    .separation((a, b) => (a.parent === b.parent ? 1 : 1.1))
 
   treeLayout(anc as any)
   treeLayout(desc as any)
@@ -104,6 +133,16 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
       links.push({ sx: l.source.x, sy: l.source.y, tx: l.target.x, ty: l.target.y })
     }
   })
+
+  boundsRef.current = nodes.reduce(
+    (b, n) => ({
+      minX: Math.min(b.minX, n.x - NODE_W / 2),
+      maxX: Math.max(b.maxX, n.x + NODE_W / 2),
+      minY: Math.min(b.minY, n.y - NODE_H / 2),
+      maxY: Math.max(b.maxY, n.y + NODE_H / 2),
+    }),
+    { minX: -NODE_W / 2, maxX: NODE_W / 2, minY: -NODE_H / 2, maxY: NODE_H / 2 },
+  )
 
   const linkPath = linkVertical<unknown, { x: number; y: number }>()
     .x((d) => d.x)
@@ -150,6 +189,7 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
                   person={person}
                   isLoading={loading}
                   isFocus={isFocus}
+                  showSpouses={isFocus || !n.isAnc}
                   canExpandUp={hasParents}
                   isExpandedUp={state.expandedUp.has(n.id)}
                   onExpandUp={() => onStateChange(expandUp(state, n.id))}
@@ -173,7 +213,7 @@ export function FamilyTree({ state, cache, loadingIds, onStateChange }: Props) {
         <IconButton aria-label="Zoom arrière" title="Zoom arrière" onClick={() => zoomBy(1 / 1.3)}>
           <Minus size={15} />
         </IconButton>
-        <IconButton aria-label="Recentrer l'arbre" title="Recentrer" onClick={recenter}>
+        <IconButton aria-label="Ajuster l'arbre à l'écran" title="Ajuster à l'écran" onClick={fit}>
           <Crosshair size={15} />
         </IconButton>
       </div>

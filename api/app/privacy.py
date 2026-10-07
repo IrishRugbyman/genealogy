@@ -120,6 +120,12 @@ _PERSON_KEEP = {
     "total_depth",
     "family_id",
     "other_parent_id",
+    # Links, without which the tree could not be drawn through a living person
+    # (the Sosa root is one). They name no one: the linked records are judged
+    # on their own.
+    "father_id",
+    "mother_id",
+    "child_ids",
 }
 # Kept on a hidden person but walked like any other value: the relatives
 # themselves are hidden or shown on their own merits.

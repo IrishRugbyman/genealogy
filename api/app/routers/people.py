@@ -7,9 +7,39 @@ from pydantic import BaseModel
 
 import app.db as _db
 from app.db import get_cursor
-from app.schemas import CommonAncestor, PersonDetail, TreeNode
+from app.schemas import CommonAncestor, PersonDetail, TreeNode, TreePerson
 
 router = APIRouter(prefix="/api/people", tags=["people"])
+
+
+# Bound on one batch: the tree asks for what a click reveals, a few dozen at most.
+MAX_TREE_BATCH = 300
+
+
+@router.get("", response_model=list[TreePerson])
+def get_tree_people(
+    ids: str = Query(description="Comma-separated individual ids, e.g. I5,I6"),
+    cur=Depends(get_cursor),
+):
+    """Lean tree records for a batch of people: what expanding a box needs to draw."""
+    wanted = list(dict.fromkeys(i.strip() for i in ids.split(",") if i.strip()))
+    if len(wanted) > MAX_TREE_BATCH:
+        raise HTTPException(status_code=400, detail=f"{MAX_TREE_BATCH} ids au maximum")
+    return _db.queries.get_tree_people(cur, wanted)
+
+
+@router.get("/{id}/tree", response_model=list[TreePerson])
+def get_tree(
+    id: str = Path(description="Individual id at the centre of the tree"),
+    up: int = Query(3, ge=0, le=8, description="Generations of ancestors"),
+    down: int = Query(1, ge=0, le=4, description="Generations of descendants"),
+    cur=Depends(get_cursor),
+):
+    """Everyone the tree shows when it opens on `id`, in one request."""
+    cur.execute("SELECT 1 FROM individuals WHERE id = %s", [id])
+    if cur.fetchone() is None:
+        raise HTTPException(status_code=404, detail=f"Individual {id!r} not found")
+    return _db.queries.get_tree_neighbourhood(cur, id, up, down)
 
 
 @router.get("/{id}", response_model=PersonDetail)

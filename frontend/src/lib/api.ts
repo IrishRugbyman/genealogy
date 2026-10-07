@@ -365,6 +365,31 @@ export function fetchPerson(id: string): Promise<PersonDetail> {
   return fetchJson(`/api/people/${encodeURIComponent(id)}`)
 }
 
+/** One box of the interactive tree, with the links to its neighbours. */
+export interface TreePerson {
+  id: string
+  name: string | null
+  sex: string | null
+  birth_year: number | null
+  death_year: number | null
+  birth_locality: string | null
+  father_id: string | null
+  mother_id: string | null
+  child_ids: string[]
+  spouses: { id: string | null; name: string | null; living?: boolean }[]
+  living?: boolean
+}
+
+/** Everyone the tree draws when it opens on `id`: one request, not one per box. */
+export function fetchTreeNeighbourhood(id: string, up: number, down: number): Promise<TreePerson[]> {
+  return fetchJson(`/api/people/${encodeURIComponent(id)}/tree?up=${up}&down=${down}`)
+}
+
+/** The boxes an expansion reveals, in one batch. */
+export function fetchTreePeople(ids: string[]): Promise<TreePerson[]> {
+  return fetchJson(`/api/people?ids=${ids.map(encodeURIComponent).join(',')}`)
+}
+
 // ---------------------------------------------------------------------------
 // Family list
 // ---------------------------------------------------------------------------

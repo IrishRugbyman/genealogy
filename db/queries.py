@@ -861,6 +861,90 @@ def get_ancestors(cur, ind_id: str, max_depth: int = 12) -> list[dict[str, Any]]
     return [dict(r) for r in cur.fetchall()]
 
 
+def get_tree_people(cur, ids: Collection[str]) -> list[dict[str, Any]]:
+    """Lean records for the interactive tree: who, when, and the links to draw.
+
+    One row per id found: name, sex, birth and death years, birth locality, the
+    parents (one family, the lowest id, if someone is a child of several),
+    every child across all unions, and the spouses in marriage order. Ids not
+    in the database are simply absent from the result.
+    """
+    if not ids:
+        return []
+    cur.execute(
+        """
+        SELECT
+            i.id, i.name, i.sex, i.birth_year, i.death_year,
+            bp.name AS birth_locality,
+            par.father_id, par.mother_id,
+            coalesce(kids.child_ids, '{}') AS child_ids,
+            coalesce(sp.spouses, '[]'::json) AS spouses
+        FROM individuals i
+        LEFT JOIN places bp ON bp.id = i.birth_place_id
+        LEFT JOIN LATERAL (
+            SELECT pc.father_id, pc.mother_id
+            FROM parent_child pc
+            WHERE pc.child_id = i.id
+            ORDER BY pc.family_id
+            LIMIT 1
+        ) par ON true
+        LEFT JOIN LATERAL (
+            SELECT array_agg(fc.child_id ORDER BY c.birth_year NULLS LAST, fc.child_id)
+                   AS child_ids
+            FROM families f
+            JOIN family_children fc ON fc.family_id = f.id
+            JOIN individuals c ON c.id = fc.child_id
+            WHERE i.id IN (f.husband_id, f.wife_id)
+        ) kids ON true
+        LEFT JOIN LATERAL (
+            SELECT json_agg(
+                       json_build_object('id', s.id, 'name', s.name)
+                       ORDER BY f.marriage_year NULLS LAST, f.id
+                   ) AS spouses
+            FROM families f
+            JOIN individuals s
+              ON s.id = CASE WHEN f.husband_id = i.id THEN f.wife_id ELSE f.husband_id END
+            WHERE i.id IN (f.husband_id, f.wife_id)
+        ) sp ON true
+        WHERE i.id = ANY(%s)
+        """,
+        [list(ids)],
+    )
+    return [dict(r) for r in cur.fetchall()]
+
+
+def get_tree_neighbourhood(cur, ind_id: str, up: int, down: int) -> list[dict[str, Any]]:
+    """`get_tree_people` for `ind_id` and everyone within `up` generations above
+    and `down` below: what the tree needs to open in one request instead of one
+    request per box. UNION (not UNION ALL) keeps the endogamous recursion finite.
+    """
+    cur.execute(
+        """
+        WITH RECURSIVE
+        anc(id, depth) AS (
+            SELECT %(id)s::text, 0
+          UNION
+            SELECT p.parent_id, anc.depth + 1
+            FROM anc
+            JOIN parent_child pc ON pc.child_id = anc.id
+            CROSS JOIN LATERAL (VALUES (pc.father_id), (pc.mother_id)) p(parent_id)
+            WHERE p.parent_id IS NOT NULL AND anc.depth < %(up)s
+        ),
+        des(id, depth) AS (
+            SELECT %(id)s::text, 0
+          UNION
+            SELECT pc.child_id, des.depth + 1
+            FROM des
+            JOIN parent_child pc ON des.id IN (pc.father_id, pc.mother_id)
+            WHERE des.depth < %(down)s
+        )
+        SELECT id FROM anc UNION SELECT id FROM des
+        """,
+        {"id": ind_id, "up": up, "down": down},
+    )
+    return get_tree_people(cur, [r["id"] for r in cur.fetchall()])
+
+
 def get_descendants(cur, ind_id: str, max_depth: int = 12) -> list[dict[str, Any]]:
     """
     Recursive CTE returning all descendants up to max_depth generations.
