@@ -90,6 +90,13 @@ The locality/commune split mirrors the database: `/places/$id` is one village or
 
 ## Map rendering model
 
+The basemap is CARTO raster (`light_all` / `dark_all`) with `VITE_CARTO_KEY` appended
+(`cartoTiles` in `GenealogyMap.tsx`). Since late August 2026 the keyless endpoint returns
+every tile as a valid PNG reading "API KEY REQUIRED", HTTP 200: nothing errors, so a defaced
+map is the only symptom. CARTO is also retiring raster; the freight app has already moved to
+its vector style (`~/quant/freight/frontend/src/lib/basemap.ts`) and this map would follow
+the same path the day raster stops answering.
+
 `components/map/GenealogyMap.tsx` runs three independent layer types, toggled by the active
 granularity mode. Getting this wrong makes events silently vanish from the map, so:
 

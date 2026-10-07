@@ -70,6 +70,18 @@ interface MapPalette {
   tiles: string
 }
 
+/* CARTO raster basemap. Since late August 2026 the keyless endpoint answers
+   every tile with a valid PNG reading "API KEY REQUIRED" (HTTP 200: nothing
+   errors, the map is just defaced). The key comes from VITE_CARTO_KEY in the
+   gitignored .env.local; a browser basemap key is public by construction, CARTO
+   itself puts it in the tile URL. Free tier: 5M tile requests a month. */
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY as string | undefined
+
+function cartoTiles(style: 'light_all' | 'dark_all'): string {
+  const url = `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`
+  return CARTO_KEY ? `${url}?key=${encodeURIComponent(CARTO_KEY)}` : url
+}
+
 const PALETTES: Record<'light' | 'dark', MapPalette> = {
   light: {
     ramp:       ['#ea9b7c', '#df7f59', '#cf663b', '#bb4f1d', '#a23d07', '#833006'],
@@ -81,7 +93,7 @@ const PALETTES: Record<'light' | 'dark', MapPalette> = {
     hamlet:     '#3c5db9',
     hamletEdge: '#2a4287',
     link:       '#a24112',
-    tiles:      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    tiles:      cartoTiles('light_all'),
   },
   dark: {
     ramp:       ['#773e22', '#974a24', '#b55a2d', '#d16c3b', '#e78354', '#f5a27c'],
@@ -93,7 +105,7 @@ const PALETTES: Record<'light' | 'dark', MapPalette> = {
     hamlet:     '#5176d4',
     hamletEdge: '#8aa6e6',
     link:       '#ea9162',
-    tiles:      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    tiles:      cartoTiles('dark_all'),
   },
 }
 

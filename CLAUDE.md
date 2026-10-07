@@ -52,6 +52,7 @@ All deployment-specific values come from `api/.env` (read by the systemd unit th
 | `GENEALOGY_VIEW_PASSWORD` | Family password that unlocks the living (see below) | the upload password; neither set = nobody can unlock, the living stay hidden |
 | `GENEALOGY_DEPOT_DIR` | Where `/depot` batches land | uploads refused (503) |
 | `VITE_DEPOT_CONTACT` | Who the depot page says to warn on an error | "l'administrateur du site" |
+| `VITE_CARTO_KEY` | CARTO basemaps key for the map tiles (same account as the freight app) | tiles show an "API KEY REQUIRED" watermark |
 
 The Sosa root and branch labels reach the frontend through `GET /api/tree`, never through
 a constant.
