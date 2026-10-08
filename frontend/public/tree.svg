@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Généalogie</title>
+  <rect width="64" height="64" rx="14" fill="#a24112"/>
+  <g stroke="#fefdfb" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M32 49 L18 31 M32 49 L46 31"/>
+    <path d="M18 31 L11 14 M18 31 L25 14 M46 31 L39 14 M46 31 L53 14"/>
+  </g>
+  <g fill="#fefdfb">
+    <circle cx="32" cy="49" r="6"/>
+    <circle cx="18" cy="31" r="4.5"/>
+    <circle cx="46" cy="31" r="4.5"/>
+    <circle cx="11" cy="14" r="3.5"/>
+    <circle cx="25" cy="14" r="3.5"/>
+    <circle cx="39" cy="14" r="3.5"/>
+    <circle cx="53" cy="14" r="3.5"/>
+  </g>
+</svg>
