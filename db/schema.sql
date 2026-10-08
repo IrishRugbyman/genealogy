@@ -547,6 +547,26 @@ CREATE TABLE deleted_note_lines (
     PRIMARY KEY (individual_id, line)
 );
 
+-- The fourth registry records ADDITIONS rather than changes: the people,
+-- families, child links, events, notes and sources that the research put into
+-- the tree on top of the GEDCOM export. The site's tree is the research tree,
+-- built on the export, not a mirror of it. Populated by
+-- db/seed_tree_additions.py in the research repo, which deletes its previous
+-- rows, re-inserts them and re-registers them, so a reload replays it whole.
+-- Added people and families carry ids prefixed 'Q' (never 'I'/'F'). row_key is
+-- the id for individuals/families, 'family_id|child_id' for family_children,
+-- and the serial id for events/notes/sources. db/reconcile.py subtracts these
+-- rows from its JSON <-> DB comparison.
+CREATE TABLE tree_additions (
+    table_name  TEXT NOT NULL,
+    row_key     TEXT NOT NULL,
+    reason      TEXT,
+    PRIMARY KEY (table_name, row_key),
+    CONSTRAINT tree_additions_table_valid CHECK (
+        table_name IN ('individuals','families','family_children','events','notes','sources')
+    )
+);
+
 -- ---------------------------------------------------------------------------
 -- Convenience views
 -- ---------------------------------------------------------------------------
