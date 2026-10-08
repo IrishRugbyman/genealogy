@@ -90,6 +90,7 @@ edit it by hand**; add a file under `src/routes/` and let it regenerate.
 | `relation.$id1.$id2.tsx` | relationship path between two people, via common ancestor |
 | `stats.tsx` / `gaps.tsx` | statistics dashboard / data-coverage gaps |
 | `professions.*` / `distinctions.*` / `military-ranks.*` | catalog browse + detail |
+| `sources.*` | the bibliography (research works by kind, then the compiler's SOUR texts) + one source with each act read in it and the records it backs. Record pages show citations through `components/source/Citation.tsx` |
 | `bans.tsx` | BAN localities reference |
 | `depot.tsx` | uploads; `?person=I…` turns it into a correction form for that person |
 

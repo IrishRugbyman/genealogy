@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StatsRouteImport } from './routes/stats'
+import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as ProfessionsRouteImport } from './routes/professions'
 import { Route as MilitaryRanksRouteImport } from './routes/military-ranks'
 import { Route as MapRouteImport } from './routes/map'
@@ -19,11 +20,13 @@ import { Route as DistinctionsRouteImport } from './routes/distinctions'
 import { Route as DepotRouteImport } from './routes/depot'
 import { Route as BansRouteImport } from './routes/bans'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SourcesIndexRouteImport } from './routes/sources.index'
 import { Route as ProfessionsIndexRouteImport } from './routes/professions.index'
 import { Route as MilitaryRanksIndexRouteImport } from './routes/military-ranks.index'
 import { Route as FamiliesIndexRouteImport } from './routes/families.index'
 import { Route as DistinctionsIndexRouteImport } from './routes/distinctions.index'
 import { Route as TreeIdRouteImport } from './routes/tree.$id'
+import { Route as SourcesIdRouteImport } from './routes/sources.$id'
 import { Route as ProfessionsIdRouteImport } from './routes/professions.$id'
 import { Route as PlacesIdRouteImport } from './routes/places.$id'
 import { Route as PeopleIdRouteImport } from './routes/people.$id'
@@ -36,6 +39,11 @@ import { Route as RelationId1Id2RouteImport } from './routes/relation.$id1.$id2'
 const StatsRoute = StatsRouteImport.update({
   id: '/stats',
   path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SourcesRoute = SourcesRouteImport.update({
+  id: '/sources',
+  path: '/sources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfessionsRoute = ProfessionsRouteImport.update({
@@ -83,6 +91,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SourcesIndexRoute = SourcesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SourcesRoute,
+} as any)
 const ProfessionsIndexRoute = ProfessionsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -107,6 +120,11 @@ const TreeIdRoute = TreeIdRouteImport.update({
   id: '/tree/$id',
   path: '/tree/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SourcesIdRoute = SourcesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => SourcesRoute,
 } as any)
 const ProfessionsIdRoute = ProfessionsIdRouteImport.update({
   id: '/$id',
@@ -159,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/map': typeof MapRoute
   '/military-ranks': typeof MilitaryRanksRouteWithChildren
   '/professions': typeof ProfessionsRouteWithChildren
+  '/sources': typeof SourcesRouteWithChildren
   '/stats': typeof StatsRoute
   '/communes/$insee': typeof CommunesInseeRoute
   '/distinctions/$id': typeof DistinctionsIdRoute
@@ -167,11 +186,13 @@ export interface FileRoutesByFullPath {
   '/people/$id': typeof PeopleIdRoute
   '/places/$id': typeof PlacesIdRoute
   '/professions/$id': typeof ProfessionsIdRoute
+  '/sources/$id': typeof SourcesIdRoute
   '/tree/$id': typeof TreeIdRoute
   '/distinctions/': typeof DistinctionsIndexRoute
   '/families/': typeof FamiliesIndexRoute
   '/military-ranks/': typeof MilitaryRanksIndexRoute
   '/professions/': typeof ProfessionsIndexRoute
+  '/sources/': typeof SourcesIndexRoute
   '/relation/$id1/$id2': typeof RelationId1Id2Route
 }
 export interface FileRoutesByTo {
@@ -188,11 +209,13 @@ export interface FileRoutesByTo {
   '/people/$id': typeof PeopleIdRoute
   '/places/$id': typeof PlacesIdRoute
   '/professions/$id': typeof ProfessionsIdRoute
+  '/sources/$id': typeof SourcesIdRoute
   '/tree/$id': typeof TreeIdRoute
   '/distinctions': typeof DistinctionsIndexRoute
   '/families': typeof FamiliesIndexRoute
   '/military-ranks': typeof MilitaryRanksIndexRoute
   '/professions': typeof ProfessionsIndexRoute
+  '/sources': typeof SourcesIndexRoute
   '/relation/$id1/$id2': typeof RelationId1Id2Route
 }
 export interface FileRoutesById {
@@ -206,6 +229,7 @@ export interface FileRoutesById {
   '/map': typeof MapRoute
   '/military-ranks': typeof MilitaryRanksRouteWithChildren
   '/professions': typeof ProfessionsRouteWithChildren
+  '/sources': typeof SourcesRouteWithChildren
   '/stats': typeof StatsRoute
   '/communes/$insee': typeof CommunesInseeRoute
   '/distinctions/$id': typeof DistinctionsIdRoute
@@ -214,11 +238,13 @@ export interface FileRoutesById {
   '/people/$id': typeof PeopleIdRoute
   '/places/$id': typeof PlacesIdRoute
   '/professions/$id': typeof ProfessionsIdRoute
+  '/sources/$id': typeof SourcesIdRoute
   '/tree/$id': typeof TreeIdRoute
   '/distinctions/': typeof DistinctionsIndexRoute
   '/families/': typeof FamiliesIndexRoute
   '/military-ranks/': typeof MilitaryRanksIndexRoute
   '/professions/': typeof ProfessionsIndexRoute
+  '/sources/': typeof SourcesIndexRoute
   '/relation/$id1/$id2': typeof RelationId1Id2Route
 }
 export interface FileRouteTypes {
@@ -233,6 +259,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/military-ranks'
     | '/professions'
+    | '/sources'
     | '/stats'
     | '/communes/$insee'
     | '/distinctions/$id'
@@ -241,11 +268,13 @@ export interface FileRouteTypes {
     | '/people/$id'
     | '/places/$id'
     | '/professions/$id'
+    | '/sources/$id'
     | '/tree/$id'
     | '/distinctions/'
     | '/families/'
     | '/military-ranks/'
     | '/professions/'
+    | '/sources/'
     | '/relation/$id1/$id2'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -262,11 +291,13 @@ export interface FileRouteTypes {
     | '/people/$id'
     | '/places/$id'
     | '/professions/$id'
+    | '/sources/$id'
     | '/tree/$id'
     | '/distinctions'
     | '/families'
     | '/military-ranks'
     | '/professions'
+    | '/sources'
     | '/relation/$id1/$id2'
   id:
     | '__root__'
@@ -279,6 +310,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/military-ranks'
     | '/professions'
+    | '/sources'
     | '/stats'
     | '/communes/$insee'
     | '/distinctions/$id'
@@ -287,11 +319,13 @@ export interface FileRouteTypes {
     | '/people/$id'
     | '/places/$id'
     | '/professions/$id'
+    | '/sources/$id'
     | '/tree/$id'
     | '/distinctions/'
     | '/families/'
     | '/military-ranks/'
     | '/professions/'
+    | '/sources/'
     | '/relation/$id1/$id2'
   fileRoutesById: FileRoutesById
 }
@@ -305,6 +339,7 @@ export interface RootRouteChildren {
   MapRoute: typeof MapRoute
   MilitaryRanksRoute: typeof MilitaryRanksRouteWithChildren
   ProfessionsRoute: typeof ProfessionsRouteWithChildren
+  SourcesRoute: typeof SourcesRouteWithChildren
   StatsRoute: typeof StatsRoute
   CommunesInseeRoute: typeof CommunesInseeRoute
   PeopleIdRoute: typeof PeopleIdRoute
@@ -320,6 +355,13 @@ declare module '@tanstack/react-router' {
       path: '/stats'
       fullPath: '/stats'
       preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sources': {
+      id: '/sources'
+      path: '/sources'
+      fullPath: '/sources'
+      preLoaderRoute: typeof SourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/professions': {
@@ -385,6 +427,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sources/': {
+      id: '/sources/'
+      path: '/'
+      fullPath: '/sources/'
+      preLoaderRoute: typeof SourcesIndexRouteImport
+      parentRoute: typeof SourcesRoute
+    }
     '/professions/': {
       id: '/professions/'
       path: '/'
@@ -419,6 +468,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tree/$id'
       preLoaderRoute: typeof TreeIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/sources/$id': {
+      id: '/sources/$id'
+      path: '/$id'
+      fullPath: '/sources/$id'
+      preLoaderRoute: typeof SourcesIdRouteImport
+      parentRoute: typeof SourcesRoute
     }
     '/professions/$id': {
       id: '/professions/$id'
@@ -535,6 +591,19 @@ const ProfessionsRouteWithChildren = ProfessionsRoute._addFileChildren(
   ProfessionsRouteChildren,
 )
 
+interface SourcesRouteChildren {
+  SourcesIdRoute: typeof SourcesIdRoute
+  SourcesIndexRoute: typeof SourcesIndexRoute
+}
+
+const SourcesRouteChildren: SourcesRouteChildren = {
+  SourcesIdRoute: SourcesIdRoute,
+  SourcesIndexRoute: SourcesIndexRoute,
+}
+
+const SourcesRouteWithChildren =
+  SourcesRoute._addFileChildren(SourcesRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BansRoute: BansRoute,
@@ -545,6 +614,7 @@ const rootRouteChildren: RootRouteChildren = {
   MapRoute: MapRoute,
   MilitaryRanksRoute: MilitaryRanksRouteWithChildren,
   ProfessionsRoute: ProfessionsRouteWithChildren,
+  SourcesRoute: SourcesRouteWithChildren,
   StatsRoute: StatsRoute,
   CommunesInseeRoute: CommunesInseeRoute,
   PeopleIdRoute: PeopleIdRoute,

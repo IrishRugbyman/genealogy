@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Heart } from 'lucide-react'
 import { useEffect } from 'react'
 import { SexMark } from '@/components/person/PersonChip'
+import { CitationList } from '@/components/source/Citation'
 import { Badge } from '@/components/ui/Badge'
 import { Card, Section } from '@/components/ui/Section'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -205,14 +206,7 @@ function FamilyDetailPage() {
 
         {data.sources.length > 0 && (
           <Section title="Sources" count={data.sources.length}>
-            <ul className="divide-y divide-border overflow-hidden rounded-[var(--radius-lg)] border border-border">
-              {data.sources.map((s, i) => (
-                <li key={i} className="flex gap-3 px-3 py-2 text-sm">
-                  <span className="w-20 shrink-0 capitalize text-ink-3">{s.scope}</span>
-                  <span className="min-w-0 text-foreground">{s.citation}</span>
-                </li>
-              ))}
-            </ul>
+            <CitationList sources={data.sources} />
           </Section>
         )}
       </div>

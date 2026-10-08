@@ -45,6 +45,32 @@ class ParentRef(BaseModel):
     family_id: str | None = None
 
 
+class SourceRef(BaseModel):
+    """A citation backing a record: the link, the place in the source, the source."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    scope: str  # birth/death/baptism/burial/marriage/record/event
+    note: str | None = None  # what the citation establishes for this record
+    citation_id: str
+    origin: str  # export (the GEDCOM's SOUR) | research
+    label: str | None = None  # the act or passage
+    date_text: str | None = None
+    locator: str | None = None  # page, view, folio
+    url: str | None = None  # the citation's, else its source's
+    citation_note: str | None = None  # abstract or quotation
+    source_id: str
+    source_title: str
+    source_kind: str | None = None
+    source_author: str | None = None
+    source_repository: str | None = None
+    source_call_number: str | None = None
+    cites_source_id: str | None = None  # a work reported second-hand, not seen
+    cites_source_title: str | None = None
+    has_transcript: bool = False  # the act's text is on its source page
+    image_count: int = 0  # scans, served to the family only
+
+
 class SpouseRef(BaseModel):
     """A spouse + family context as seen from one individual's record."""
 
@@ -74,7 +100,7 @@ class SpouseRef(BaseModel):
     marriage_contract_day: int | None = None
     marriage_contract_place_raw: str | None = None
     marriage_contract_locality: str | None = None
-    marriage_sources: list[str] = []
+    marriage_sources: list[SourceRef] = []
 
 
 class ChildRef(BaseModel):
@@ -112,15 +138,7 @@ class EventRecord(BaseModel):
     place_id: int | None = None
     place_locality: str | None = None
     note: str | None = None
-
-
-class SourceRef(BaseModel):
-    """A source citation attached to a record or a specific vital event."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    scope: str  # birth/death/baptism/burial/marriage/record
-    citation: str
+    sources: list[SourceRef] = []
 
 
 class TitleRef(BaseModel):
@@ -374,6 +392,7 @@ class FamilyEvent(BaseModel):
     place_id: int | None = None
     place_locality: str | None = None
     note: str | None = None
+    sources: list[SourceRef] = []
 
 
 class FamilySummary(BaseModel):
@@ -737,6 +756,105 @@ class ProfessionDetail(ProfessionRef):
     """Occupation with full individual list."""
 
     individuals: list[ProfessionPersonRef] = []
+
+
+class SourceSummary(BaseModel):
+    """One work in the registry, with how much leans on it (list endpoint)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    origin: str  # export | research
+    kind: str | None = None
+    title: str
+    author: str | None = None
+    publication: str | None = None
+    repository: str | None = None
+    call_number: str | None = None
+    date_text: str | None = None
+    citation_count: int
+    link_count: int
+    cited_by_count: int
+
+
+class SourcePersonLink(BaseModel):
+    """A person (or one of their events) a citation backs."""
+
+    id: str
+    name: str | None = None
+    sex: str | None = None
+    birth_year: int | None = None
+    death_year: int | None = None
+    scope: str
+    note: str | None = None
+    event_type: str | None = None
+    event_date_raw: str | None = None
+
+
+class SourceFamilyLink(BaseModel):
+    """A family (or one of its events) a citation backs."""
+
+    family_id: str
+    husband_id: str | None = None
+    husband_name: str | None = None
+    husband_sex: str | None = None
+    wife_id: str | None = None
+    wife_name: str | None = None
+    wife_sex: str | None = None
+    marriage_year: int | None = None
+    marriage_qualifier: str | None = None
+    scope: str
+    note: str | None = None
+
+
+class SourceCitationImage(BaseModel):
+    ord: int
+    caption: str | None = None
+
+
+class SourceCitation(BaseModel):
+    """One place in a source and the records it backs."""
+
+    id: str
+    label: str | None = None
+    date_text: str | None = None
+    locator: str | None = None
+    url: str | None = None
+    note: str | None = None
+    cites_source_id: str | None = None
+    cites_source_title: str | None = None
+    transcript: str | None = None  # the act's own words (Markdown), public
+    images: list[SourceCitationImage] = []  # fetched from /api/citations/{id}/images/{ord}
+    individuals: list[SourcePersonLink] = []
+    families: list[SourceFamilyLink] = []
+
+
+class SourceCitedBy(BaseModel):
+    """A citation, in another source, that reports this one second-hand."""
+
+    id: str
+    label: str | None = None
+    locator: str | None = None
+    source_id: str
+    source_title: str
+
+
+class SourceDetail(BaseModel):
+    """One source: the work, its citations, and who cites it second-hand."""
+
+    id: str
+    origin: str
+    kind: str | None = None
+    title: str
+    author: str | None = None
+    publication: str | None = None
+    repository: str | None = None
+    call_number: str | None = None
+    date_text: str | None = None
+    url: str | None = None
+    note: str | None = None
+    citations: list[SourceCitation] = []
+    cited_by: list[SourceCitedBy] = []
 
 
 class DistinctionRef(BaseModel):

@@ -35,6 +35,10 @@ app/
     distinctions.py   # /api/distinctions, /api/distinctions/{id}
     military_ranks.py # /api/military-ranks, /api/military-ranks/{id}
     bans.py           # /api/bans, /api/bans/{id} - BAN locality reference
+    sources.py        # /api/sources (every source, cited or not), /api/sources/{id}
+                      # (its citations, each act's public transcription, the records
+                      # each backs); /api/citations/{id}/images/{n} (act scans, family
+                      # only, 403 otherwise). Sent with no-cache: they change with research
     uploads.py        # POST /api/uploads (+ /auth) - the only write route
     session.py        # GET/POST/DELETE /api/session - family sign-in (a cookie)
   limiter.py   # the shared slowapi Limiter, keyed on the real client IP

@@ -125,12 +125,40 @@ export interface SpouseRef {
   marriage_contract_day: number | null
   marriage_contract_place_raw: string | null
   marriage_contract_locality: string | null
-  marriage_sources: string[]
+  marriage_sources: SourceRef[]
 }
 
+/** A citation backing a record: what the link says, the place in the source, the
+    source itself. A source is written once and cited by many records. */
 export interface SourceRef {
+  /** birth/death/baptism/burial/marriage/record/event */
   scope: string
-  citation: string
+  /** What the citation establishes for this record. */
+  note: string | null
+  citation_id: string
+  /** 'export': a SOUR line of the GEDCOM; 'research': our own reading. */
+  origin: 'export' | 'research'
+  /** The act or passage. */
+  label: string | null
+  date_text: string | null
+  /** Page, view, folio. */
+  locator: string | null
+  url: string | null
+  /** Abstract or quotation. */
+  citation_note: string | null
+  source_id: string
+  source_title: string
+  source_kind: string | null
+  source_author: string | null
+  source_repository: string | null
+  source_call_number: string | null
+  /** A work reported second-hand, not seen. */
+  cites_source_id: string | null
+  cites_source_title: string | null
+  /** The act's text is on its source page. */
+  has_transcript: boolean
+  /** Scans of the act, shown to the family only. */
+  image_count: number
 }
 
 export interface TitleRef {
@@ -169,6 +197,7 @@ export interface EventRecord {
   place_id: number | null
   place_locality: string | null
   note: string | null
+  sources: SourceRef[]
 }
 
 export interface PersonDetail {
@@ -481,6 +510,7 @@ export interface FamilyEvent {
   place_id: number | null
   place_locality: string | null
   note: string | null
+  sources: SourceRef[]
 }
 
 export interface FamilyDetail {
@@ -516,7 +546,7 @@ export interface FamilyDetail {
   marriage_contract_locality: string | null
   children: FamilyChild[]
   events: FamilyEvent[]
-  sources: Array<{ scope: string; citation: string }>
+  sources: SourceRef[]
 }
 
 export function useFamily(id: string | null) {
@@ -828,6 +858,111 @@ export function useProfession(id: number | null) {
   return useQuery<ProfessionDetail>({
     queryKey: ['profession', id],
     queryFn: () => fetchJson(`/api/professions/${id}`),
+    enabled: id != null,
+    staleTime: Infinity,
+  })
+}
+
+export interface SourceSummary {
+  id: string
+  origin: 'export' | 'research'
+  kind: string | null
+  title: string
+  author: string | null
+  publication: string | null
+  repository: string | null
+  call_number: string | null
+  date_text: string | null
+  citation_count: number
+  link_count: number
+  cited_by_count: number
+}
+
+export interface SourcePersonLink {
+  id: string
+  name: string | null
+  sex: string | null
+  birth_year: number | null
+  death_year: number | null
+  scope: string
+  note: string | null
+  event_type: string | null
+  event_date_raw: string | null
+  living?: boolean
+}
+
+export interface SourceFamilyLink {
+  family_id: string
+  husband_id: string | null
+  husband_name: string | null
+  husband_sex: string | null
+  wife_id: string | null
+  wife_name: string | null
+  wife_sex: string | null
+  marriage_year: number | null
+  marriage_qualifier: string | null
+  scope: string
+  note: string | null
+  husband_living?: boolean
+  wife_living?: boolean
+}
+
+export interface SourceCitation {
+  id: string
+  label: string | null
+  date_text: string | null
+  locator: string | null
+  url: string | null
+  note: string | null
+  cites_source_id: string | null
+  cites_source_title: string | null
+  /** The act's own words (Markdown): transcription, translation, quoted passages. */
+  transcript: string | null
+  /** Scans of the act; fetch with `citationImageUrl`, family only. */
+  images: Array<{ ord: number; caption: string | null }>
+  individuals: SourcePersonLink[]
+  families: SourceFamilyLink[]
+}
+
+export interface SourceDetail {
+  id: string
+  origin: 'export' | 'research'
+  kind: string | null
+  title: string
+  author: string | null
+  publication: string | null
+  repository: string | null
+  call_number: string | null
+  date_text: string | null
+  url: string | null
+  note: string | null
+  citations: SourceCitation[]
+  cited_by: Array<{
+    id: string
+    label: string | null
+    locator: string | null
+    source_id: string
+    source_title: string
+  }>
+}
+
+/** One scan of a citation's act. The API answers 403 unless the family is signed in. */
+export function citationImageUrl(citationId: string, ord: number): string {
+  return `${BASE_URL}/api/citations/${encodeURIComponent(citationId)}/images/${ord}`
+}
+
+export function useSources() {
+  return useQuery<SourceSummary[]>({
+    queryKey: ['sources'],
+    queryFn: () => fetchJson('/api/sources'),
+    staleTime: Infinity,
+  })
+}
+
+export function useSource(id: string | null) {
+  return useQuery<SourceDetail>({
+    queryKey: ['source', id],
+    queryFn: () => fetchJson(`/api/sources/${encodeURIComponent(id!)}`),
     enabled: id != null,
     staleTime: Infinity,
   })

@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { PersonTimeline } from '@/components/person/PersonTimeline'
 import { PersonTimelineHorizontal } from '@/components/person/PersonTimelineHorizontal'
 import { SexMark } from '@/components/person/PersonChip'
+import { Citation, CitationList } from '@/components/source/Citation'
 import { Badge } from '@/components/ui/Badge'
 import { Button, buttonClasses } from '@/components/ui/Button'
 import { Card, Section } from '@/components/ui/Section'
@@ -481,7 +482,7 @@ function EventsSection({ person }: { person: PersonDetail }) {
             <EventRow key={i} icon={<Calendar size={13} />} label={typeLabel(e.type)}
               year={e.date_year} month={e.date_month} day={e.date_day}
               qualifier={e.date_qualifier} place={e.place_locality}
-              placeId={e.place_id} />
+              placeId={e.place_id} note={e.note} sources={e.sources} />
           ))}
           {!hasDates && (
             <EmptyState
@@ -497,7 +498,7 @@ function EventsSection({ person }: { person: PersonDetail }) {
   )
 }
 
-function EventRow({ icon, label, year, month, day, qualifier, place, placeId, note, ageFrom }: {
+function EventRow({ icon, label, year, month, day, qualifier, place, placeId, note, ageFrom, sources }: {
   icon: React.ReactNode
   label: string
   year: number | null
@@ -508,6 +509,7 @@ function EventRow({ icon, label, year, month, day, qualifier, place, placeId, no
   placeId?: number | null
   note?: string | null
   ageFrom?: number | null
+  sources?: SourceRef[]
 }) {
   const dateStr = formatDate(year, month, day)
   const qualStr = qualifier && qualifier !== 'EXACT' ? `${QUALIFIER_MARK[qualifier] ?? qualifier} ` : ''
@@ -540,6 +542,12 @@ function EventRow({ icon, label, year, month, day, qualifier, place, placeId, no
         {note && (
           <span className="mt-1 block whitespace-pre-wrap text-xs text-ink-3">{note}</span>
         )}
+        {sources?.map((c, j) => (
+          <span key={`${c.citation_id}-${j}`} className="mt-1.5 flex gap-1.5 text-xs">
+            <span className="shrink-0 text-ink-3/70">Source</span>
+            <Citation c={c} compact />
+          </span>
+        ))}
       </span>
     </div>
   )
@@ -772,9 +780,9 @@ function UnionDetail({ union: s }: { union: SpouseRef }) {
           )}
           {s.marriage_note && <p className="whitespace-pre-wrap">{s.marriage_note}</p>}
           {s.marriage_sources.map((c, j) => (
-            <p key={j}>
-              <span className="text-ink-3/70">Source </span>
-              {c}
+            <p key={`${c.citation_id}-${j}`} className="flex gap-1.5">
+              <span className="shrink-0 text-ink-3/70">Source</span>
+              <Citation c={c} compact />
             </p>
           ))}
         </div>
@@ -818,15 +826,6 @@ function Disclosure({
       {open && <div className="animate-fade-in mt-3">{children}</div>}
     </section>
   )
-}
-
-const SCOPE_LABEL: Record<string, string> = {
-  birth: 'Naissance',
-  baptism: 'Baptême',
-  death: 'Décès',
-  burial: 'Inhumation',
-  marriage: 'Mariage',
-  record: 'Fiche',
 }
 
 const ERA_LABELS: Record<string, string> = {
@@ -903,11 +902,11 @@ function NotesSection({ notes }: { notes: string[] }) {
 }
 
 function SourcesSection({ sources }: { sources: SourceRef[] }) {
-  // Deduplicate identical (scope, citation) pairs for a tidy list.
+  // The export can cite the same source twice for one scope; show it once.
   const unique = useMemo(() => {
     const seen = new Set<string>()
     return sources.filter((s) => {
-      const k = `${s.scope}\0${s.citation}`
+      const k = `${s.scope}\0${s.citation_id}`
       if (seen.has(k)) return false
       seen.add(k)
       return true
@@ -916,14 +915,7 @@ function SourcesSection({ sources }: { sources: SourceRef[] }) {
 
   return (
     <Disclosure title="Sources" count={unique.length}>
-      <ul className="divide-y divide-border rounded-[var(--radius-lg)] border border-border">
-        {unique.map((s, i) => (
-          <li key={i} className="flex gap-3 px-3 py-2 text-sm">
-            <span className="w-24 shrink-0 text-ink-3">{SCOPE_LABEL[s.scope] ?? s.scope}</span>
-            <span className="min-w-0 whitespace-pre-wrap text-foreground">{s.citation}</span>
-          </li>
-        ))}
-      </ul>
+      <CitationList sources={unique} />
     </Disclosure>
   )
 }

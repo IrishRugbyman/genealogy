@@ -377,6 +377,58 @@ def count_individuals(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Citations: sources -> citations -> citation_links (see schema.sql)
+# ---------------------------------------------------------------------------
+
+# One citation as a record shows it: what the link says (scope, note), the place in
+# the source (label, date, locator, its own note), and the source it belongs to. A
+# citation's URL falls back to its source's. `cites_*` names the work a second-hand
+# citation reports without its having been seen.
+_CITATION_SELECT = """
+    SELECT l.id AS link_id, l.event_id, l.scope, l.note,
+           c.id AS citation_id, c.origin, c.label, c.date_text, c.locator,
+           COALESCE(c.url, s.url) AS url, c.note AS citation_note,
+           s.id AS source_id, s.title AS source_title, s.kind AS source_kind,
+           s.author AS source_author, s.repository AS source_repository,
+           s.call_number AS source_call_number,
+           cs.id AS cites_source_id, cs.title AS cites_source_title,
+           c.transcript IS NOT NULL AS has_transcript,
+           (SELECT count(*) FROM citation_images ci WHERE ci.citation_id = c.id) AS image_count
+    FROM citation_links l
+    JOIN citations c ON c.id = l.citation_id
+    JOIN sources s ON s.id = c.source_id
+    LEFT JOIN sources cs ON cs.id = c.cites_source_id
+"""
+
+
+def _citations(cur, where: str, args: list) -> list[dict[str, Any]]:
+    """The citations whose link matches `where` (on alias `l`), in link order."""
+    cur.execute(f"{_CITATION_SELECT} WHERE {where} ORDER BY l.id", args)
+    rows = []
+    for r in cur.fetchall():
+        row = dict(r)
+        del row["link_id"], row["event_id"]
+        rows.append(row)
+    return rows
+
+
+def _with_event_citations(cur, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Give each event (fetched with its `id`) its `sources`, and drop the id."""
+    ids = [e["id"] for e in events]
+    by_event: dict[int, list] = {i: [] for i in ids}
+    if ids:
+        cur.execute(f"{_CITATION_SELECT} WHERE l.event_id = ANY(%s) ORDER BY l.id", [ids])
+        for r in cur.fetchall():
+            row = dict(r)
+            event_id = row.pop("event_id")
+            del row["link_id"]
+            by_event[event_id].append(row)
+    for e in events:
+        e["sources"] = by_event[e.pop("id")]
+    return events
+
+
 def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
     """
     Full record for one individual, or None if not found.
@@ -512,12 +564,7 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
             f.marriage_contract_place_raw,
             cp.name           AS marriage_contract_locality,
             mp.name       AS marriage_locality,
-            mp.country_iso    AS marriage_country_iso,
-            COALESCE(
-                (SELECT array_agg(s.citation ORDER BY s.id)
-                 FROM sources s WHERE s.family_id = f.id),
-                '{}'
-            ) AS marriage_sources
+            mp.country_iso    AS marriage_country_iso
         FROM families f
         LEFT JOIN individuals ih ON ih.id = f.husband_id
         LEFT JOIN individuals iw ON iw.id = f.wife_id
@@ -543,6 +590,7 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
             fam["spouse_sex"] = fam["husband_sex"]
             fam["spouse_birth_year"] = fam["husband_birth_year"]
             fam["spouse_death_year"] = fam["husband_death_year"]
+        fam["marriage_sources"] = _citations(cur, "l.family_id = %s", [fam["family_id"]])
         spouses.append(fam)
     person["spouses"] = spouses
 
@@ -576,8 +624,8 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
     # Non-vital custom events (BIRT/BAPM/DEAT/BURI come from flat individual columns)
     cur.execute(
         """
-        SELECT e.type, e.date_raw, e.date_qualifier, e.date_year, e.date_month, e.date_day,
-               e.date_year2, e.date_month2, e.date_day2, e.place_raw, e.note,
+        SELECT e.id, e.type, e.date_raw, e.date_qualifier, e.date_year, e.date_month,
+               e.date_day, e.date_year2, e.date_month2, e.date_day2, e.place_raw, e.note,
                e.place_id, ep.name AS place_locality
         FROM events e
         LEFT JOIN places ep ON ep.id = e.place_id
@@ -586,7 +634,7 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
     """,
         [ind_id],
     )
-    person["events"] = [dict(r) for r in cur.fetchall()]
+    person["events"] = _with_event_citations(cur, [dict(r) for r in cur.fetchall()])
 
     # Notes
     cur.execute(
@@ -597,14 +645,8 @@ def get_individual(cur, ind_id: str) -> dict[str, Any] | None:
     )
     person["notes"] = [r["body"] for r in cur.fetchall()]
 
-    # Source citations (scope birth/death/baptism/burial/record)
-    cur.execute(
-        """
-        SELECT scope, citation FROM sources WHERE individual_id = %s ORDER BY id
-    """,
-        [ind_id],
-    )
-    person["sources"] = [dict(r) for r in cur.fetchall()]
+    # Citations of the record and of its vital events (scope birth/.../record)
+    person["sources"] = _citations(cur, "l.individual_id = %s", [ind_id])
 
     # Titles (each may carry a NOTE sub-record)
     cur.execute(
@@ -1266,8 +1308,8 @@ def get_family(cur, fam_id: str) -> dict[str, Any] | None:
     # Family events
     cur.execute(
         """
-        SELECT e.type, e.date_raw, e.date_qualifier, e.date_year, e.date_month, e.date_day,
-               e.place_raw, e.note, e.place_id, ep.name AS place_locality
+        SELECT e.id, e.type, e.date_raw, e.date_qualifier, e.date_year, e.date_month,
+               e.date_day, e.place_raw, e.note, e.place_id, ep.name AS place_locality
         FROM events e
         LEFT JOIN places ep ON ep.id = e.place_id
         WHERE e.family_id = %s
@@ -1275,16 +1317,10 @@ def get_family(cur, fam_id: str) -> dict[str, Any] | None:
     """,
         [fam_id],
     )
-    fam["events"] = [dict(r) for r in cur.fetchall()]
+    fam["events"] = _with_event_citations(cur, [dict(r) for r in cur.fetchall()])
 
-    # Source citations (scope marriage/record)
-    cur.execute(
-        """
-        SELECT scope, citation FROM sources WHERE family_id = %s ORDER BY id
-    """,
-        [fam_id],
-    )
-    fam["sources"] = [dict(r) for r in cur.fetchall()]
+    # Citations of the family and of its marriage (scope marriage/record)
+    fam["sources"] = _citations(cur, "l.family_id = %s", [fam_id])
 
     return fam
 
@@ -1469,7 +1505,7 @@ def get_statistics(cur) -> dict[str, Any]:
     # Most sourced individual
     cur.execute("""
         SELECT i.id, i.name, i.birth_year, count(*) AS source_count
-        FROM sources s
+        FROM citation_links s
         JOIN individuals i ON i.id = s.individual_id
         GROUP BY i.id, i.name, i.birth_year
         ORDER BY count(*) DESC
@@ -2177,6 +2213,162 @@ def get_profession_detail(cur, profession_id: int) -> dict[str, Any] | None:
     )
     prof["individuals"] = [dict(r) for r in cur.fetchall()]
     return prof
+
+
+# ---------------------------------------------------------------------------
+# Sources
+# ---------------------------------------------------------------------------
+
+
+def get_source_list(cur) -> list[dict[str, Any]]:
+    """Every source with how many citations, links and records lean on it.
+
+    Sources nothing cites yet are listed too: the research's registry is also its
+    bibliography, works not seen included.
+    """
+    cur.execute("""
+        SELECT s.id, s.origin, s.kind, s.title, s.author, s.publication, s.repository,
+               s.call_number, s.date_text,
+               (SELECT count(*) FROM citations c WHERE c.source_id = s.id) AS citation_count,
+               (SELECT count(*) FROM citation_links l JOIN citations c ON c.id = l.citation_id
+                WHERE c.source_id = s.id) AS link_count,
+               (SELECT count(*) FROM citations c WHERE c.cites_source_id = s.id)
+                   AS cited_by_count
+        FROM sources s
+        ORDER BY s.origin DESC, s.title
+    """)
+    return [dict(r) for r in cur.fetchall()]
+
+
+def get_source_detail(cur, source_id: str) -> dict[str, Any] | None:
+    """One source, its citations and, under each, the records it backs.
+
+    A citation's records are split by kind so that the privacy layer treats them as
+    it treats every other listing: `individuals` (a person, or one of their events)
+    drops a hidden person, `families` masks a hidden partner. `cited_by` lists the
+    citations, in other sources, that report this one second-hand.
+    """
+    cur.execute(
+        """SELECT id, origin, kind, title, author, publication, repository, call_number,
+                  date_text, url, note
+           FROM sources WHERE id = %s""",
+        (source_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    src = dict(row)
+    cur.execute(
+        """SELECT c.id, c.label, c.date_text, c.locator, c.url, c.note, c.transcript,
+                  cs.id AS cites_source_id, cs.title AS cites_source_title,
+                  COALESCE((SELECT json_agg(json_build_object('ord', ci.ord,
+                                                              'caption', ci.caption)
+                                            ORDER BY ci.ord)
+                            FROM citation_images ci WHERE ci.citation_id = c.id), '[]')
+                      AS images
+           FROM citations c LEFT JOIN sources cs ON cs.id = c.cites_source_id
+           WHERE c.source_id = %s
+           ORDER BY substring(coalesce(c.date_text, '') || ' ' || coalesce(c.locator, '')
+                              FROM '[0-9]{4}') NULLS LAST,
+                    c.locator NULLS LAST, c.id""",
+        (source_id,),
+    )
+    citations = [dict(r) for r in cur.fetchall()]
+    by_id = {c["id"]: c for c in citations}
+    for c in citations:
+        c["individuals"], c["families"] = [], []
+    cur.execute(
+        """SELECT l.citation_id, l.scope, l.note,
+                  i.id, i.name, i.sex, i.birth_year, i.death_year,
+                  e.type AS event_type, e.date_raw AS event_date_raw
+           FROM citation_links l
+           JOIN citations c ON c.id = l.citation_id
+           LEFT JOIN events e ON e.id = l.event_id
+           JOIN individuals i ON i.id = COALESCE(l.individual_id, e.individual_id)
+           WHERE c.source_id = %s
+           ORDER BY i.birth_year NULLS LAST, i.name, l.id""",
+        (source_id,),
+    )
+    for r in cur.fetchall():
+        r = dict(r)
+        by_id[r.pop("citation_id")]["individuals"].append(r)
+    # A research correction names its act too: the person or family it corrected is
+    # backed by the citation even without a link (scope 'correction'). One row per
+    # record however many columns changed; the note is the fullest reason, since the
+    # others say "comme given_name".
+    cur.execute(
+        """SELECT rc.citation_id, 'correction' AS scope,
+                  regexp_replace((array_agg(rc.reason ORDER BY length(rc.reason) DESC))[1],
+                                 '^Nos recherches : ', '') AS note,
+                  i.id, i.name, i.sex, i.birth_year, i.death_year,
+                  NULL AS event_type, NULL AS event_date_raw
+           FROM raw_corrections rc
+           JOIN citations c ON c.id = rc.citation_id
+           JOIN individuals i ON i.id = rc.record_id
+           WHERE c.source_id = %s
+           GROUP BY rc.citation_id, i.id
+           ORDER BY i.birth_year NULLS LAST, i.name""",
+        (source_id,),
+    )
+    for r in cur.fetchall():
+        r = dict(r)
+        by_id[r.pop("citation_id")]["individuals"].append(r)
+    cur.execute(
+        """SELECT rc.citation_id, 'correction' AS scope,
+                  regexp_replace((array_agg(rc.reason ORDER BY length(rc.reason) DESC))[1],
+                                 '^Nos recherches : ', '') AS note, f.id AS family_id,
+                  f.husband_id, ih.name AS husband_name, ih.sex AS husband_sex,
+                  f.wife_id, iw.name AS wife_name, iw.sex AS wife_sex,
+                  f.marriage_year, f.marriage_qualifier
+           FROM raw_corrections rc
+           JOIN citations c ON c.id = rc.citation_id
+           JOIN families f ON f.id = rc.record_id
+           LEFT JOIN individuals ih ON ih.id = f.husband_id
+           LEFT JOIN individuals iw ON iw.id = f.wife_id
+           WHERE c.source_id = %s
+           GROUP BY rc.citation_id, f.id, ih.id, iw.id""",
+        (source_id,),
+    )
+    for r in cur.fetchall():
+        r = dict(r)
+        by_id[r.pop("citation_id")]["families"].append(r)
+    cur.execute(
+        """SELECT l.citation_id, l.scope, l.note, f.id AS family_id,
+                  f.husband_id, ih.name AS husband_name, ih.sex AS husband_sex,
+                  f.wife_id, iw.name AS wife_name, iw.sex AS wife_sex,
+                  f.marriage_year, f.marriage_qualifier
+           FROM citation_links l
+           JOIN citations c ON c.id = l.citation_id
+           LEFT JOIN events e ON e.id = l.event_id
+           JOIN families f ON f.id = COALESCE(l.family_id, e.family_id)
+           LEFT JOIN individuals ih ON ih.id = f.husband_id
+           LEFT JOIN individuals iw ON iw.id = f.wife_id
+           WHERE c.source_id = %s
+           ORDER BY f.marriage_year NULLS LAST, f.id, l.id""",
+        (source_id,),
+    )
+    for r in cur.fetchall():
+        r = dict(r)
+        by_id[r.pop("citation_id")]["families"].append(r)
+    src["citations"] = citations
+    cur.execute(
+        """SELECT c.id, c.label, c.locator, s.id AS source_id, s.title AS source_title
+           FROM citations c JOIN sources s ON s.id = c.source_id
+           WHERE c.cites_source_id = %s ORDER BY s.title, c.id""",
+        (source_id,),
+    )
+    src["cited_by"] = [dict(r) for r in cur.fetchall()]
+    return src
+
+
+def get_citation_image_file(cur, citation_id: str, ord_: int) -> str | None:
+    """The file (relative to the act images directory) of one image of a citation."""
+    cur.execute(
+        "SELECT file FROM citation_images WHERE citation_id = %s AND ord = %s",
+        (citation_id, ord_),
+    )
+    row = cur.fetchone()
+    return row["file"] if row else None
 
 
 # ---------------------------------------------------------------------------

@@ -233,7 +233,13 @@ def redact(value: Any, living: frozenset[str], *, union_of_hidden: bool = False)
 # large and walking them would cost for nothing. Exact paths only - most of
 # their neighbours (`/api/places/{id}`) do carry people.
 _PERSON_FREE_PATHS = {"/api/health", "/api/places", "/api/places/gaps", "/api/stats/pedigree"}
-_PERSON_FREE_PREFIXES = ("/api/geo/", "/api/bans", "/api/session", "/api/uploads")
+_PERSON_FREE_PREFIXES = (
+    "/api/geo/",
+    "/api/bans",
+    "/api/session",
+    "/api/uploads",
+    "/api/citations/",  # act images: binary, family-only, set their own private cache
+)
 
 
 def _person_free(path: str) -> bool:

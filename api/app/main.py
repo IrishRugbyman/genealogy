@@ -34,6 +34,7 @@ from app.routers import (
     professions,
     search,
     session,
+    sources,
     stats,
     uploads,
 )
@@ -120,6 +121,8 @@ app.include_router(bans.router)
 app.include_router(professions.router)
 app.include_router(distinctions.router)
 app.include_router(military_ranks.router)
+app.include_router(sources.router)
+app.include_router(sources.images_router)
 app.include_router(places.router)
 app.include_router(uploads.router)
 app.include_router(session.router)

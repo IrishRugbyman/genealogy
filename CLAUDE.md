@@ -51,6 +51,7 @@ All deployment-specific values come from `api/.env` (read by the systemd unit th
 | `GENEALOGY_UPLOAD_PASSWORD` | Shared password of the `/depot` upload page | uploads refused (503) |
 | `GENEALOGY_VIEW_PASSWORD` | Family password that unlocks the living (see below) | the upload password; neither set = nobody can unlock, the living stay hidden |
 | `GENEALOGY_DEPOT_DIR` | Where `/depot` batches land | uploads refused (503) |
+| `GENEALOGY_ACTES_DIR` | Where act scans are read from, for the family only (`/api/citations/{id}/images/{n}`) | act images off (503); transcriptions still public |
 | `VITE_DEPOT_CONTACT` | Who the depot page says to warn on an error | "l'administrateur du site" |
 | `VITE_CARTO_KEY` | CARTO basemaps key for the map tiles (same account as the freight app) | tiles show an "API KEY REQUIRED" watermark |
 

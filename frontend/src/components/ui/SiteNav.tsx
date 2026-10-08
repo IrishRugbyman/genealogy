@@ -27,6 +27,7 @@ export const EXPLORE_ITEMS: ExploreItem[] = [
   { to: '/professions', label: 'Métiers', hint: 'Les métiers exercés, et par qui' },
   { to: '/distinctions', label: 'Distinctions', hint: 'Décorations, titres et honneurs' },
   { to: '/military-ranks', label: 'Grades militaires', hint: 'Qui a servi, et à quel grade' },
+  { to: '/sources', label: 'Sources', hint: 'Registres, ouvrages et actes cités, et qui ils documentent' },
   { to: '/bans', label: 'Bans historiques', hint: "Seigneuries d'avant 1789 et leurs villages" },
   { to: '/gaps', label: 'Qualité des données', hint: 'Lieux encore mal situés' },
 ]

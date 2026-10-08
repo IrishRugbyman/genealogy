@@ -343,27 +343,100 @@ CREATE INDEX ON notes (individual_id);
 CREATE INDEX ON notes (family_id);
 
 -- ---------------------------------------------------------------------------
--- Source citations (SOUR), attached to a record or a specific vital event.
--- scope: birth/death/baptism/burial/marriage (the event the citation supports)
---        or 'record' for a record-level citation on the individual/family.
+-- Sources, citations, and what each citation backs
+--
+-- Three levels, so a document is written once however many records it backs:
+--   sources         the work itself: a parish register, a bishopric's volume of
+--                   dispensations, a book, a review, an online tree;
+--   citations       one place in a source (a page, a view, a folio), with what
+--                   is read there. A source has any number of citations;
+--   citation_links  one citation backing one record: a person, a family or an
+--                   event, and for a person or family which part of the record
+--                   (scope). A citation backs any number of records.
+--
+-- Two origins. 'export': the SOUR lines of the GEDCOM, which are free text, so
+-- each distinct text is one source with one citation (no locator), both keyed
+-- 'G' + the first 10 hex digits of the sha1 of the text: a re-import that keeps
+-- the text keeps the id. Written by db/load_event_extras.py in the research repo.
+-- 'research': declared by hand in research/db/seed_sources.py with readable
+-- slugs, never truncated by a reload (only citation_links are raw).
 -- ---------------------------------------------------------------------------
 CREATE TABLE sources (
-    id              SERIAL PRIMARY KEY,
-    individual_id   TEXT REFERENCES individuals(id),
-    family_id       TEXT REFERENCES families(id),
-    scope           TEXT NOT NULL,
-    citation        TEXT NOT NULL,
+    id              TEXT PRIMARY KEY,
+    origin          TEXT NOT NULL,
+    kind            TEXT,          -- registre, liasse, ouvrage, article, revue, arbre, manuscrit
+    title           TEXT NOT NULL, -- how the site names it
+    author          TEXT,
+    publication     TEXT,          -- publisher, place, year; or the review and its issue
+    repository      TEXT,          -- where it is kept: "AD Haute-Corse"
+    call_number     TEXT,          -- its cote there: "4G 24"
+    date_text       TEXT,          -- the years it covers or was published: "1661-1674"
+    url             TEXT,
+    note            TEXT,
 
-    CONSTRAINT sources_one_owner CHECK (
-        (individual_id IS NOT NULL) != (family_id IS NOT NULL)
-    ),
-    CONSTRAINT sources_scope_valid CHECK (
-        scope IN ('birth','death','baptism','burial','marriage','record')
-    )
+    CONSTRAINT sources_origin_valid CHECK (origin IN ('export','research')),
+    CONSTRAINT sources_export_id CHECK ((origin = 'export') = (id ~ '^G[0-9a-f]{10}$'))
 );
 
-CREATE INDEX ON sources (individual_id);
-CREATE INDEX ON sources (family_id);
+CREATE TABLE citations (
+    id              TEXT PRIMARY KEY,
+    source_id       TEXT NOT NULL REFERENCES sources(id),
+    origin          TEXT NOT NULL,
+    label           TEXT,          -- the act or passage: "dispense de Salvatore et Druziana"
+    date_text       TEXT,          -- the act's date as read: "03/10/1720"
+    locator         TEXT,          -- where in the source: "clichés p. 063-064", "vue 91/213"
+    url             TEXT,          -- a link to that page or view, when there is one
+    transcript_path TEXT,          -- the act's fiche in the research repo (not served)
+    note            TEXT,          -- what it says: abstract, quotation, the tree it draws
+    -- The work this passage cites, when that work was not itself seen: a book's
+    -- footnote that cites an archive piece. Second-hand, and said so.
+    cites_source_id TEXT REFERENCES sources(id),
+    -- The act's own words, published: the transcription and translation sections of
+    -- its fiche, and the passages it quotes (Markdown). Never the research's analysis.
+    transcript      TEXT,
+
+    CONSTRAINT citations_origin_valid CHECK (origin IN ('export','research')),
+    CONSTRAINT citations_export_id CHECK ((origin = 'export') = (id ~ '^G[0-9a-f]{10}$'))
+);
+
+CREATE INDEX ON citations (source_id);
+
+-- The act's images (scans of the archives or of an online gallery). Served to the
+-- signed-in family only: they are other people's photographs. `file` is relative to
+-- the directory the API reads them from ($GENEALOGY_ACTES_DIR), never shown.
+CREATE TABLE citation_images (
+    citation_id     TEXT NOT NULL REFERENCES citations(id) ON DELETE CASCADE,
+    ord             INTEGER NOT NULL,
+    file            TEXT NOT NULL,
+    caption         TEXT,
+    PRIMARY KEY (citation_id, ord)
+);
+
+-- scope: birth/death/baptism/burial/marriage (the vital event the citation
+-- supports), 'record' (the person or family as a whole), or 'event' (a row of
+-- `events`, named by event_id).
+CREATE TABLE citation_links (
+    id              SERIAL PRIMARY KEY,
+    citation_id     TEXT NOT NULL REFERENCES citations(id),
+    individual_id   TEXT REFERENCES individuals(id),
+    family_id       TEXT REFERENCES families(id),
+    event_id        INTEGER REFERENCES events(id) ON DELETE CASCADE,
+    scope           TEXT NOT NULL,
+    note            TEXT,          -- what this citation establishes for this record
+
+    CONSTRAINT citation_links_one_owner CHECK (
+        num_nonnulls(individual_id, family_id, event_id) = 1
+    ),
+    CONSTRAINT citation_links_scope_valid CHECK (
+        scope IN ('birth','death','baptism','burial','marriage','record','event')
+    ),
+    CONSTRAINT citation_links_event_scope CHECK ((event_id IS NOT NULL) = (scope = 'event'))
+);
+
+CREATE INDEX ON citation_links (citation_id);
+CREATE INDEX ON citation_links (individual_id);
+CREATE INDEX ON citation_links (family_id);
+CREATE INDEX ON citation_links (event_id);
 
 -- ---------------------------------------------------------------------------
 -- Titles and media (individual only)
@@ -528,6 +601,7 @@ CREATE TABLE raw_corrections (
     source_value     TEXT NOT NULL,   -- what the GEDCOM says
     corrected_value  TEXT NOT NULL,   -- what the DB holds; '' = deliberately emptied
     reason           TEXT,
+    citation_id      TEXT REFERENCES citations(id),  -- the act behind a research correction
     PRIMARY KEY (record_id, column_name)
 );
 
@@ -548,14 +622,14 @@ CREATE TABLE deleted_note_lines (
 );
 
 -- The fourth registry records ADDITIONS rather than changes: the people,
--- families, child links, events, notes and sources that the research put into
+-- families, child links, events, notes and citation links that the research put into
 -- the tree on top of the GEDCOM export. The site's tree is the research tree,
 -- built on the export, not a mirror of it. Populated by
 -- db/seed_tree_additions.py in the research repo, which deletes its previous
 -- rows, re-inserts them and re-registers them, so a reload replays it whole.
 -- Added people and families carry ids prefixed 'Q' (never 'I'/'F'). row_key is
 -- the id for individuals/families, 'family_id|child_id' for family_children,
--- and the serial id for events/notes/sources. db/reconcile.py subtracts these
+-- and the serial id for events/notes/citation_links. db/reconcile.py subtracts these
 -- rows from its JSON <-> DB comparison.
 CREATE TABLE tree_additions (
     table_name  TEXT NOT NULL,
@@ -563,7 +637,8 @@ CREATE TABLE tree_additions (
     reason      TEXT,
     PRIMARY KEY (table_name, row_key),
     CONSTRAINT tree_additions_table_valid CHECK (
-        table_name IN ('individuals','families','family_children','events','notes','sources')
+        table_name IN ('individuals','families','family_children','events','notes',
+                       'citation_links')
     )
 );
 
