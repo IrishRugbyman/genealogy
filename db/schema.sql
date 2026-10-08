@@ -360,6 +360,10 @@ CREATE INDEX ON notes (family_id);
 -- the text keeps the id. Written by db/load_event_extras.py in the research repo.
 -- 'research': declared by hand in research/db/seed_sources.py with readable
 -- slugs, never truncated by a reload (only citation_links are raw).
+-- 'notes': the sources the compiler names inside his free-text notes (« contrat de
+-- mariage du 27/10/1676 », « matricule militaire EPINAL 3278 »), kept only where the
+-- text is quoted verbatim from the note, keyed 'N' + 10 hex of the sha1 of that text and
+-- replayed after every reload by research/db/seed_note_sources.py.
 -- ---------------------------------------------------------------------------
 CREATE TABLE sources (
     id              TEXT PRIMARY KEY,
@@ -374,7 +378,7 @@ CREATE TABLE sources (
     url             TEXT,
     note            TEXT,
 
-    CONSTRAINT sources_origin_valid CHECK (origin IN ('export','research')),
+    CONSTRAINT sources_origin_valid CHECK (origin IN ('export','research','notes')),
     CONSTRAINT sources_export_id CHECK ((origin = 'export') = (id ~ '^G[0-9a-f]{10}$'))
 );
 
@@ -395,7 +399,7 @@ CREATE TABLE citations (
     -- its fiche, and the passages it quotes (Markdown). Never the research's analysis.
     transcript      TEXT,
 
-    CONSTRAINT citations_origin_valid CHECK (origin IN ('export','research')),
+    CONSTRAINT citations_origin_valid CHECK (origin IN ('export','research','notes')),
     CONSTRAINT citations_export_id CHECK ((origin = 'export') = (id ~ '^G[0-9a-f]{10}$'))
 );
 

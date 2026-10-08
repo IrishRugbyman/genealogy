@@ -130,6 +130,10 @@ export interface SpouseRef {
 
 /** A citation backing a record: what the link says, the place in the source, the
     source itself. A source is written once and cited by many records. */
+/** 'export': a SOUR line of the GEDCOM; 'research': our own reading; 'notes': a source
+    the compiler names inside one of his notes, quoted verbatim. */
+export type SourceOrigin = 'export' | 'research' | 'notes'
+
 export interface SourceRef {
   /** birth/death/baptism/burial/marriage/record/event */
   scope: string
@@ -137,7 +141,7 @@ export interface SourceRef {
   note: string | null
   citation_id: string
   /** 'export': a SOUR line of the GEDCOM; 'research': our own reading. */
-  origin: 'export' | 'research'
+  origin: SourceOrigin
   /** The act or passage. */
   label: string | null
   date_text: string | null
@@ -865,7 +869,7 @@ export function useProfession(id: number | null) {
 
 export interface SourceSummary {
   id: string
-  origin: 'export' | 'research'
+  origin: SourceOrigin
   kind: string | null
   title: string
   author: string | null
@@ -926,7 +930,7 @@ export interface SourceCitation {
 
 export interface SourceDetail {
   id: string
-  origin: 'export' | 'research'
+  origin: SourceOrigin
   kind: string | null
   title: string
   author: string | null

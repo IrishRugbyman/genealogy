@@ -116,6 +116,7 @@ function SourcesPage() {
       })).filter((g) => g.sources.length > 0),
       other: research.filter((s) => !s.kind || !known.has(s.kind)),
       exported: shown.filter((s) => s.origin === 'export'),
+      fromNotes: shown.filter((s) => s.origin === 'notes'),
       total: shown.length,
     }
   }, [data, q])
@@ -139,12 +140,13 @@ function SourcesPage() {
   }
 
   const nResearch = data.filter((s) => s.origin === 'research').length
+  const nNotes = data.filter((s) => s.origin === 'notes').length
 
   return (
     <PageContainer>
       <PageHeader
         title="Sources"
-        subtitle={`${nResearch} ouvrages, registres et fonds lus ou repérés par nos recherches, et ${data.length - nResearch} sources de l'arbre du compilateur. Ouvrez une source pour voir chaque acte qu'on y a lu et les fiches qui s'appuient dessus.`}
+        subtitle={`${nResearch} ouvrages, registres et fonds lus ou repérés par nos recherches, et ${data.length - nResearch} sources de l'arbre du compilateur, dont ${nNotes} citées dans ses notes. Ouvrez une source pour voir chaque acte qu'on y a lu et les fiches qui s'appuient dessus.`}
       />
 
       <div className="mb-8 max-w-md">
@@ -174,6 +176,23 @@ function SourcesPage() {
             >
               <ul className="divide-y divide-border overflow-hidden rounded-[var(--radius-lg)] border border-border">
                 {groups.exported.map((s) => (
+                  <SourceRow key={s.id} s={s} />
+                ))}
+              </ul>
+            </Section>
+          )}
+          {groups.fromNotes.length > 0 && (
+            <Section
+              title="Sources citées dans les notes du compilateur"
+              count={groups.fromNotes.length}
+              actions={<Badge>Notes</Badge>}
+            >
+              <p className="mb-3 max-w-[70ch] text-sm text-ink-3">
+                Contrats, testaments, registres, matricules… nommés dans ses notes et recopiés
+                mot pour mot. Chacune mène à la fiche qui la porte.
+              </p>
+              <ul className="divide-y divide-border overflow-hidden rounded-[var(--radius-lg)] border border-border">
+                {groups.fromNotes.map((s) => (
                   <SourceRow key={s.id} s={s} />
                 ))}
               </ul>

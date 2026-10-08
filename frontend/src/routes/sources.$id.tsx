@@ -291,6 +291,10 @@ function SourceDetailPage() {
         actions={
           data.origin === 'research' ? (
             <Badge tone="accent">Nos recherches</Badge>
+          ) : data.origin === 'notes' ? (
+            <Badge title="Source nommée dans une note du compilateur, recopiée telle quelle">
+              Note du compilateur
+            </Badge>
           ) : (
             <Badge title="Ligne SOUR de l'arbre du compilateur">Arbre du compilateur</Badge>
           )

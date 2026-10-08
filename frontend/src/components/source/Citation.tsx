@@ -50,6 +50,11 @@ export function Citation({ c, compact = false }: { c: SourceRef; compact?: boole
             Nos recherches
           </Badge>
         )}
+        {c.origin === 'notes' && (
+          <Badge title="Source nommée dans une note du compilateur, recopiée telle quelle">
+            Note du compilateur
+          </Badge>
+        )}
       </span>
       {place && (
         <span className="mt-0.5 flex items-baseline gap-1.5 text-ink-2">
