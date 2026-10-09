@@ -1,7 +1,7 @@
 # Roadmap
 
-Forward-looking only. The viewer's history up to the 2026-10-04 split lives in the private
-research repo's CHANGELOG.
+Forward-looking only. What was built: `docs/CHANGELOG.md` (and, before the 2026-10-04
+split, the private research repo's CHANGELOG).
 
 ---
 
