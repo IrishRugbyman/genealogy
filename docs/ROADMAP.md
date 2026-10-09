@@ -34,30 +34,7 @@ static assets and surface them on the person detail page.*
 
 ---
 
-## Phase 11 - Source citations UI
-
-*Goal: Surface the 116 source citations from the `sources` table on person and
-family pages. Currently loaded by `load_event_extras.py` but never displayed.*
-
-### Schema
-`sources(id, individual_id, family_id, scope, citation)` where `scope` is
-`birth/death/baptism/burial/marriage/record`.
-
-### API
-- [ ] Add `sources` list to `get_person()` in `db/queries.py`, grouped by scope
-- [ ] Add `sources` list to `get_family()` for marriage sources
-- [ ] Add `SourceOut` schema to `api/app/schemas.py`
-- [ ] Expose on `GET /api/people/{id}` and `GET /api/families/{id}` responses
-
-### Frontend
-- [ ] On `people.$id.tsx`: show per-event citations beneath each event card
-      (small italic text); `scope='record'` sources go in a bottom "Sources" section
-- [ ] On `families.$id.tsx`: show marriage sources under the marriage date/place
-
-### Definition of Done
-- Person pages with source rows display citations under the relevant event
-- Family pages show marriage sources
-- Citations are visually de-emphasised (don't crowd the event cards)
+## Phase 11 - Source citations UI [COMPLETE 2026-10-08]
 
 ---
 
