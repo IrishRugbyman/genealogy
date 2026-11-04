@@ -2,8 +2,9 @@
 
 An act's transcription is public (it is in the source detail). Its images are scans
 of archives or of an online gallery, other people's photographs: they are served to
-the family only, from `$GENEALOGY_ACTES_DIR`, the research repo's `data/actes/` on
-this server. Unset, the images are off (503), never open.
+the family only, from `$GENEALOGY_ACTES_DIR`, the research repo's root on this server
+(the scans sit beside their fiches, under `actes/` directories); the paths come from
+the DB. Unset, the images are off (503), never open.
 """
 
 from __future__ import annotations
