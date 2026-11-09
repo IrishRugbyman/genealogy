@@ -64,6 +64,15 @@ birthdays and death anniversaries matching the current date.*
 
 ---
 
+## Worth borrowing from (noted 2026-11-05)
+
+- [ ] **[PeWu/topola-viewer](https://github.com/PeWu/topola-viewer)** (TypeScript, active):
+      interactive family-tree viewer that reads GEDCOM. The app already draws its own tree with
+      d3 (`d3-hierarchy`), so look here only if the chart struggles with the hard cases:
+      several marriages, related spouses, large trees.
+
+---
+
 ## Deliberately Not Building
 
 - **GEDCOM editing / write-back** - the app is read-only; editing stays in the
